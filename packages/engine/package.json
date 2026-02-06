@@ -16,5 +16,8 @@
     "@voxel/domain": "workspace:*",
     "@voxel/worldgen": "workspace:*",
     "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.182.0"
   }
 }
