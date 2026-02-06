@@ -1,6 +1,7 @@
 # @voxel/supabase
 
 Supabase integration contracts:
-- typed clients
-- room/password validation adapters
-- persistence and storage interfaces
+- runtime environment validation
+- service-role client creation
+- room/password validation + hashing utilities
+- invite token + join rate-limit helpers

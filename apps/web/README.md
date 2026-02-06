@@ -1,6 +1,6 @@
 # @voxel/web
 
-Next.js application shell for Voxel Worlds MVP.
+Next.js app for Voxel Worlds MVP.
 
 ## Intended route groups
 - `/`: landing page
@@ -10,5 +10,8 @@ Next.js application shell for Voxel Worlds MVP.
 - `/play/[roomId]`: in-game canvas + HUD overlay
 
 ## Current state
-- Workspace package bootstrap only
-- No feature implementation yet
+- Phase 1 foundation implemented:
+  - Supabase email OTP authentication routes
+  - Dashboard with profile update and room creation
+  - Invite join route with server-side password validation + throttling
+  - Room detail with member list and host kick control

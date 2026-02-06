@@ -1,13 +1,11 @@
-# Supabase Infra Placeholder
+# Supabase Infra
 
-This folder will host:
-- SQL migrations (tables, indexes, constraints)
-- RLS policy scripts
-- seed data for local development
+Phase 1 migration is implemented:
+- `migrations/20260206191000_phase1_foundation.sql`
 
-MVP tables from PRD:
-- profiles
-- rooms
-- room_members
-- world_saves
-- block_events (optional)
+It includes:
+- `profiles`, `rooms`, `room_members` tables
+- private `app_private.join_attempts` table for password join throttling
+- RLS policies for profile, room, and membership access
+- host-membership and profile bootstrap triggers
+- backend world ownership cap enforcement (max 3 active worlds per host)

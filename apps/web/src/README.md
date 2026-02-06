@@ -1,6 +1,6 @@
-# Web Source Placeholder
+# Web Source
 
-Implementation folders will be added by epic order:
-1. `app/(marketing)` and `app/(auth)`
-2. `app/(dashboard)` room management
-3. `app/play/[roomId]` game shell + HUD
+Phase 1 implementation now lives under:
+- `app/`: landing, auth, dashboard, room detail, join, play placeholder
+- `app/api`: room/profile server routes
+- `lib/`: Supabase server client and auth helpers
