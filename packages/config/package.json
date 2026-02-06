@@ -1,0 +1,15 @@
+{
+  "name": "@voxel/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"config build not required\"",
+    "lint": "echo \"config lint pending\"",
+    "typecheck": "echo \"config typecheck not required\"",
+    "test": "echo \"config tests pending\"",
+    "format": "echo \"format via root tooling\"",
+    "format:check": "echo \"format check via root tooling\"",
+    "clean": "rm -rf dist"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@voxel/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"engine build pending\"",
+    "lint": "echo \"engine lint pending\"",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "echo \"engine tests pending\"",
+    "format": "echo \"format via root tooling\"",
+    "format:check": "echo \"format check via root tooling\"",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@voxel/domain": "workspace:*",
+    "@voxel/worldgen": "workspace:*",
+    "three": "^0.180.0"
+  }
+}

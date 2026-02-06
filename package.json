@@ -1,0 +1,24 @@
+{
+  "name": "voxel-worlds",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Voxel Worlds monorepo bootstrap aligned to MVP PRD",
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  }
+}

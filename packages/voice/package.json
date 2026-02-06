@@ -1,0 +1,18 @@
+{
+  "name": "@voxel/voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"voice build pending\"",
+    "lint": "echo \"voice lint pending\"",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "echo \"voice tests pending\"",
+    "format": "echo \"format via root tooling\"",
+    "format:check": "echo \"format check via root tooling\"",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@voxel/domain": "workspace:*"
+  }
+}

@@ -1,0 +1,183 @@
+version: 1
+prd_version: v5
+prd_updated: 2026-02-06
+scope:
+  browsers:
+    - chrome_desktop
+    - chrome_ipados
+  max_players_per_room: 5
+  themes:
+    - forest
+    - snow
+    - coast
+epics:
+  - id: E1
+    name: Product Foundation
+    tasks:
+      - id: E1-T1
+        name: App shell and quality gates
+        owner:
+          - apps/web
+          - packages/config
+      - id: E1-T2
+        name: Supabase OTP auth integration
+        owner:
+          - apps/web
+          - packages/supabase
+      - id: E1-T3
+        name: Profiles + RLS model
+        owner:
+          - infra/supabase
+          - packages/domain
+      - id: E1-T4
+        name: Landing + policy placeholders
+        owner:
+          - apps/web
+          - packages/ui
+  - id: E2
+    name: Rooms and Access Control
+    tasks:
+      - id: E2-T1
+        name: Rooms schema + RLS
+        owner:
+          - infra/supabase
+          - packages/supabase
+      - id: E2-T2
+        name: Create room flow
+        owner:
+          - apps/web
+      - id: E2-T3
+        name: Invite link + join flow
+        owner:
+          - apps/web
+      - id: E2-T4
+        name: Password validation + rate limiting
+        owner:
+          - apps/web
+          - packages/supabase
+      - id: E2-T5
+        name: Room detail + host controls
+        owner:
+          - apps/web
+          - packages/ui
+      - id: E2-T6
+        name: World cap enforcement (max 3)
+        owner:
+          - apps/web
+          - infra/supabase
+      - id: E2-T7
+        name: Host kick enforcement
+        owner:
+          - apps/web
+          - packages/realtime
+          - packages/voice
+  - id: E3
+    name: Voxel Engine Core
+    tasks:
+      - id: E3-T1
+        name: Scene runtime shell
+        owner:
+          - packages/engine
+      - id: E3-T2
+        name: Deterministic worldgen contracts
+        owner:
+          - packages/worldgen
+      - id: E3-T3
+        name: Chunking + meshing worker contract
+        owner:
+          - packages/engine
+      - id: E3-T4
+        name: Desktop + iPad controls contract
+        owner:
+          - packages/engine
+          - apps/web
+      - id: E3-T5
+        name: Block interaction + HUD contract
+        owner:
+          - packages/engine
+          - packages/ui
+  - id: E4
+    name: Multiplayer Sync
+    tasks:
+      - id: E4-T1
+        name: Signaling and presence contracts
+        owner:
+          - packages/realtime
+          - packages/protocol
+      - id: E4-T2
+        name: WebRTC peer/session manager contract
+        owner:
+          - packages/realtime
+      - id: E4-T3
+        name: Player-state replication contract
+        owner:
+          - packages/realtime
+      - id: E4-T4
+        name: Host sequence ordering contract
+        owner:
+          - packages/protocol
+          - packages/realtime
+      - id: E4-T5
+        name: Late-join protocol contract
+        owner:
+          - packages/realtime
+          - packages/supabase
+  - id: E5
+    name: Voice and Spatial Audio
+    tasks:
+      - id: E5-T1
+        name: Mic capture + permission flow
+        owner:
+          - packages/voice
+      - id: E5-T2
+        name: Spatial pipeline contract
+        owner:
+          - packages/voice
+      - id: E5-T3
+        name: Positional audio update contract
+        owner:
+          - packages/voice
+          - packages/realtime
+      - id: E5-T4
+        name: Voice HUD controls contract
+        owner:
+          - packages/ui
+          - packages/voice
+  - id: E6
+    name: Persistence and Resume
+    tasks:
+      - id: E6-T1
+        name: Snapshot/diff format
+        owner:
+          - packages/protocol
+          - packages/engine
+      - id: E6-T2
+        name: Compression and storage adapters
+        owner:
+          - packages/supabase
+      - id: E6-T3
+        name: Resume flow contract
+        owner:
+          - packages/realtime
+          - packages/supabase
+  - id: E7
+    name: Hardening and Release
+    tasks:
+      - id: E7-T1
+        name: Error tracking contract
+        owner:
+          - apps/web
+      - id: E7-T2
+        name: Device quality preset matrix
+        owner:
+          - packages/engine
+      - id: E7-T3
+        name: Playwright happy-path contract
+        owner:
+          - packages/testing
+      - id: E7-T4
+        name: Deployment/runbook definition
+        owner:
+          - apps/web
+          - infra/turn
+          - infra/supabase

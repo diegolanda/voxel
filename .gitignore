@@ -1,0 +1,29 @@
+# Node
+node_modules
+.pnpm-store
+
+# Build artifacts
+dist
+.next
+out
+coverage
+*.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editor
+.DS_Store
+.vscode
+.idea
+
+# Turbo
+.turbo

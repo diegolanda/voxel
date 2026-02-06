@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@voxel/domain": ["packages/domain/src"],
+      "@voxel/protocol": ["packages/protocol/src"],
+      "@voxel/worldgen": ["packages/worldgen/src"],
+      "@voxel/engine": ["packages/engine/src"],
+      "@voxel/realtime": ["packages/realtime/src"],
+      "@voxel/voice": ["packages/voice/src"],
+      "@voxel/supabase": ["packages/supabase/src"],
+      "@voxel/ui": ["packages/ui/src"]
+    }
+  }
+}
