@@ -40,9 +40,42 @@
   border-radius: 4px;
 }
 
-.error {
+.savePanel {
   position: absolute;
   top: 120px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.saveButton {
+  font-family: monospace;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: rgba(30, 120, 60, 0.7);
+  color: #fff;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.saveNotice {
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.error {
+  position: absolute;
+  top: 180px;
   left: 8px;
   max-width: 340px;
   font-size: 12px;

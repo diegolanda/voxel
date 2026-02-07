@@ -8,7 +8,13 @@ import {
   worldToChunk,
 } from "@voxel/domain";
 import type { ChunkCoord, MvpTheme } from "@voxel/domain";
+import type { ChunkDiff } from "@voxel/protocol";
 import type { WorkerRequest, WorkerResponse } from "./types";
+
+interface ModifiedBlock {
+  localIndex: number;
+  blockType: number;
+}
 
 export class ChunkManager {
   private worker: Worker;
@@ -17,6 +23,8 @@ export class ChunkManager {
   private pendingChunks = new Set<string>();
   private chunkGroup: THREE.Group;
   private material: THREE.MeshLambertMaterial;
+  /** Tracks player-modified blocks per chunk: chunkKey → Map<localIndex, blockType> */
+  private modifiedBlocks = new Map<string, Map<number, number>>();
 
   constructor(
     worker: Worker,
@@ -156,6 +164,14 @@ export class ChunkManager {
 
     const idx = Math.floor(worldY) * (CHUNK_WIDTH * CHUNK_DEPTH) + Math.floor(lz) * CHUNK_WIDTH + Math.floor(lx);
 
+    // Track modification
+    let chunkMods = this.modifiedBlocks.get(key);
+    if (!chunkMods) {
+      chunkMods = new Map();
+      this.modifiedBlocks.set(key, chunkMods);
+    }
+    chunkMods.set(idx, blockType);
+
     // We need a new copy since the buffer may have been transferred
     const newData = new Uint8Array(data.length);
     newData.set(data);
@@ -169,6 +185,69 @@ export class ChunkManager {
     this.worker.postMessage(msg, [transferCopy.buffer] as unknown as Transferable[]);
   }
 
+  /** Extract all player-modified blocks as ChunkDiff array for snapshot serialization. */
+  getModifiedChunkDiffs(): ChunkDiff[] {
+    const diffs: ChunkDiff[] = [];
+    for (const [key, mods] of this.modifiedBlocks) {
+      if (mods.size === 0) continue;
+      const parts = key.split(",");
+      const cx = Number.parseInt(parts[0], 10);
+      const cz = Number.parseInt(parts[1], 10);
+      const entries: ChunkDiff["entries"] = [];
+      for (const [localIndex, blockType] of mods) {
+        entries.push({ localIndex, blockType });
+      }
+      diffs.push({ cx, cz, entries });
+    }
+    return diffs;
+  }
+
+  /** Apply chunk diffs on top of already-generated terrain (used for resume). */
+  applyChunkDiffs(diffs: ChunkDiff[]): void {
+    for (const diff of diffs) {
+      const key = chunkKey({ x: diff.cx, z: diff.cz });
+      const data = this.chunkData.get(key);
+      if (!data) continue;
+
+      const newData = new Uint8Array(data.length);
+      newData.set(data);
+
+      let chunkMods = this.modifiedBlocks.get(key);
+      if (!chunkMods) {
+        chunkMods = new Map();
+        this.modifiedBlocks.set(key, chunkMods);
+      }
+
+      for (const entry of diff.entries) {
+        newData[entry.localIndex] = entry.blockType;
+        chunkMods.set(entry.localIndex, entry.blockType);
+      }
+
+      this.chunkData.set(key, newData);
+
+      // Re-mesh
+      const coord: ChunkCoord = { x: diff.cx, z: diff.cz };
+      const msg: WorkerRequest = { type: "mesh", coord, voxelData: newData };
+      const transferCopy = new Uint8Array(newData);
+      this.worker.postMessage(msg, [transferCopy.buffer] as unknown as Transferable[]);
+    }
+  }
+
+  /** Get pending chunk diffs that can't be applied yet (chunks not loaded). */
+  filterPendingDiffs(diffs: ChunkDiff[]): { applied: ChunkDiff[]; pending: ChunkDiff[] } {
+    const applied: ChunkDiff[] = [];
+    const pending: ChunkDiff[] = [];
+    for (const diff of diffs) {
+      const key = chunkKey({ x: diff.cx, z: diff.cz });
+      if (this.chunkData.has(key)) {
+        applied.push(diff);
+      } else {
+        pending.push(diff);
+      }
+    }
+    return { applied, pending };
+  }
+
   dispose(): void {
     for (const [, mesh] of this.chunkMeshes) {
       mesh.geometry.dispose();
@@ -176,6 +255,7 @@ export class ChunkManager {
     this.chunkMeshes.clear();
     this.chunkData.clear();
     this.pendingChunks.clear();
+    this.modifiedBlocks.clear();
     this.worker.terminate();
   }
 }

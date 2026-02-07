@@ -22,10 +22,15 @@ interface HUDProps {
     onDisable: () => void;
     onSettingsChange: (next: Partial<VoiceSettings>) => void;
   };
+  save?: {
+    onSave: () => void;
+    saving: boolean;
+    notice: string | null;
+  };
   errorMessage?: string | null;
 }
 
-export function HUD({ network, voice, errorMessage }: HUDProps) {
+export function HUD({ network, voice, save, errorMessage }: HUDProps) {
   const fps = useGameStore((s) => s.fps);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
   const hitBlockName = useGameStore((s) => s.hitBlockName);
@@ -65,6 +70,19 @@ export function HUD({ network, voice, errorMessage }: HUDProps) {
           <div>Room: {network.roomId.slice(0, 8)}</div>
           <div>Status: {network.connectionStatus}</div>
           <div>Peers: {network.peerCount + 1}/5</div>
+        </div>
+      )}
+      {save && (
+        <div className={styles.savePanel}>
+          <button
+            type="button"
+            className={styles.saveButton}
+            disabled={save.saving}
+            onClick={save.onSave}
+          >
+            {save.saving ? "Saving..." : "Save World"}
+          </button>
+          {save.notice && <div className={styles.saveNotice}>{save.notice}</div>}
         </div>
       )}
       {errorMessage && <div className={styles.error}>{errorMessage}</div>}

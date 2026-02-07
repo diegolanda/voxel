@@ -18,7 +18,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const resolvedSearchParams = await searchParams;
   const { supabase, user } = await requireAuthenticatedUser();
 
-  const [{ data: profile }, { data: rooms }] = await Promise.all([
+  const [{ data: profile }, { data: rooms }, { data: saves }] = await Promise.all([
     supabase
       .from("profiles")
       .select("display_name, avatar_color")
@@ -29,8 +29,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       .select("id, name, theme, seed, status, invite_token, max_players, created_at")
       .eq("host_id", user.id)
       .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("world_saves")
+      .select("room_id")
       .order("created_at", { ascending: false })
   ]);
+
+  const roomsWithSaves = new Set(saves?.map((s) => s.room_id) ?? []);
 
   const roomCount = rooms?.length ?? 0;
   const atWorldCap = roomCount >= MAX_WORLDS_PER_ACCOUNT;
@@ -137,16 +143,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <div className="grid">
             {rooms.map((room) => {
               const inviteUrl = `${appUrl}/join/${room.id}?token=${room.invite_token}`;
+              const hasSave = roomsWithSaves.has(room.id);
               return (
                 <article key={room.id} className="card">
                   <div className="row">
                     <h3>{room.name}</h3>
                     <Link className="button secondary" href={`/app/rooms/${room.id}`}>
-                      Open room
+                      {hasSave ? "Resume" : "Open room"}
                     </Link>
                   </div>
                   <p className="muted">
                     Theme: {room.theme} | Status: {room.status} | Max players: {room.max_players}
+                    {hasSave ? " | Saved" : ""}
                   </p>
                   <p className="muted">Invite: {inviteUrl}</p>
                 </article>

@@ -91,6 +91,9 @@ importers:
       '@voxel/domain':
         specifier: workspace:*
         version: link:../domain
+      '@voxel/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@voxel/worldgen':
         specifier: workspace:*
         version: link:../worldgen
@@ -128,6 +131,9 @@ importers:
       '@voxel/domain':
         specifier: workspace:*
         version: link:../domain
+      '@voxel/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/testing:
     devDependencies:

@@ -37,17 +37,27 @@ export default async function RoomPage({ params, searchParams }: RoomPageProps) 
     notFound();
   }
 
-  const { data: members } = await supabase
-    .from("room_members")
-    .select("user_id, role, joined_at, profiles(display_name, avatar_color)")
-    .eq("room_id", room.id)
-    .order("joined_at", { ascending: true });
+  const [{ data: members }, { data: latestSave }] = await Promise.all([
+    supabase
+      .from("room_members")
+      .select("user_id, role, joined_at, profiles(display_name, avatar_color)")
+      .eq("room_id", room.id)
+      .order("joined_at", { ascending: true }),
+    supabase
+      .from("world_saves")
+      .select("id, created_at, byte_size")
+      .eq("room_id", room.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const inviteUrl = `${appUrl}/join/${room.id}?token=${room.invite_token}`;
   const isHost = room.host_id === user.id;
   const notice = readSearchParam(resolvedSearchParams?.notice);
   const error = readSearchParam(resolvedSearchParams?.error);
+  const hasSave = !!latestSave;
 
   return (
     <main className="container">
@@ -63,7 +73,7 @@ export default async function RoomPage({ params, searchParams }: RoomPageProps) 
             Back to dashboard
           </Link>
           <Link className="button" href={`/play/${room.id}`}>
-            Launch
+            {hasSave ? "Resume" : "Launch"}
           </Link>
         </div>
       </section>
@@ -76,6 +86,16 @@ export default async function RoomPage({ params, searchParams }: RoomPageProps) 
         <p className="muted">Share this URL with your guests:</p>
         <p>{inviteUrl}</p>
       </section>
+
+      {hasSave && latestSave && (
+        <section className="card">
+          <h2>Last save</h2>
+          <p className="muted">
+            Saved: {new Date(latestSave.created_at).toLocaleString()} | Size: {Math.round(latestSave.byte_size / 1024)} KB
+          </p>
+          <p className="muted">Launching will automatically resume from this save.</p>
+        </section>
+      )}
 
       <section className="card grid">
         <h2>Members</h2>

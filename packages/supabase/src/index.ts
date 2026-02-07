@@ -8,6 +8,12 @@ import {
   isMvpTheme,
   type MvpTheme
 } from "@voxel/domain";
+import {
+  serializeSnapshot,
+  deserializeSnapshot,
+  SNAPSHOT_FORMAT_VERSION,
+  type WorldSnapshot
+} from "@voxel/protocol";
 
 export const SUPABASE_SCHEMA = "public";
 export const ROOM_PASSWORD_MIN_LENGTH = 8;
@@ -20,6 +26,9 @@ export const ROOM_SNAPSHOTS_TABLE = "room_snapshots";
 export const ROOM_EVENTS_TABLE = "room_events";
 export const LATE_JOIN_REPLAY_DEFAULT_LIMIT = 500;
 export const LATE_JOIN_REPLAY_MAX_LIMIT = 2_000;
+export const WORLD_SAVES_TABLE = "world_saves";
+export const WORLD_SNAPSHOTS_BUCKET = "world-snapshots";
+export const MAX_SAVE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export const AVATAR_COLORS = [
   "#2A9D8F",
@@ -351,4 +360,150 @@ export function createLateJoinReplayQuery(input: {
     minSequenceExclusive: input.snapshotBaseSequence,
     limit: normalizeLateJoinReplayLimit(input.limit)
   };
+}
+
+// ── World Save Adapter ────────────────────────────────────────────────
+
+export interface WorldSaveRecord {
+  id: string;
+  roomId: string;
+  createdBy: string;
+  storagePath: string;
+  baseSequence: number;
+  byteSize: number;
+  formatVersion: number;
+  createdAt: string;
+}
+
+export interface SaveWorldInput {
+  roomId: string;
+  userId: string;
+  snapshot: WorldSnapshot;
+}
+
+export interface SaveWorldResult {
+  ok: boolean;
+  saveId?: string;
+  storagePath?: string;
+  byteSize?: number;
+  error?: string;
+}
+
+export async function compressSnapshot(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as unknown as BlobPart]).stream().pipeThrough(new CompressionStream("gzip"));
+  const compressed = await new Response(stream).arrayBuffer();
+  return new Uint8Array(compressed);
+}
+
+export async function decompressSnapshot(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as unknown as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const decompressed = await new Response(stream).arrayBuffer();
+  return new Uint8Array(decompressed);
+}
+
+export function buildSnapshotStoragePath(roomId: string, saveId: string): string {
+  return `${roomId}/${saveId}.vxs.gz`;
+}
+
+export async function saveWorld(
+  supabase: SupabaseClient,
+  input: SaveWorldInput
+): Promise<SaveWorldResult> {
+  const saveId = crypto.randomUUID();
+  const storagePath = buildSnapshotStoragePath(input.roomId, saveId);
+
+  // Serialize and compress
+  const raw = serializeSnapshot(input.snapshot);
+  const compressed = await compressSnapshot(raw);
+
+  if (compressed.byteLength > MAX_SAVE_SIZE_BYTES) {
+    return { ok: false, error: `Save exceeds ${MAX_SAVE_SIZE_BYTES} byte limit` };
+  }
+
+  // Upload to storage
+  const { error: uploadError } = await supabase.storage
+    .from(WORLD_SNAPSHOTS_BUCKET)
+    .upload(storagePath, compressed, {
+      contentType: "application/gzip",
+      upsert: false
+    });
+
+  if (uploadError) {
+    return { ok: false, error: `Storage upload failed: ${uploadError.message}` };
+  }
+
+  // Insert record
+  const { error: dbError } = await supabase
+    .from(WORLD_SAVES_TABLE)
+    .insert({
+      id: saveId,
+      room_id: input.roomId,
+      created_by: input.userId,
+      storage_path: storagePath,
+      base_sequence: input.snapshot.sequence,
+      byte_size: compressed.byteLength,
+      format_version: SNAPSHOT_FORMAT_VERSION
+    });
+
+  if (dbError) {
+    // Clean up uploaded file on DB failure
+    await supabase.storage.from(WORLD_SNAPSHOTS_BUCKET).remove([storagePath]);
+    return { ok: false, error: `Database insert failed: ${dbError.message}` };
+  }
+
+  return {
+    ok: true,
+    saveId,
+    storagePath,
+    byteSize: compressed.byteLength
+  };
+}
+
+export async function loadLatestSave(
+  supabase: SupabaseClient,
+  roomId: string
+): Promise<{ ok: true; save: WorldSaveRecord; snapshot: WorldSnapshot } | { ok: false; error: string }> {
+  // Get latest save record
+  const { data, error: dbError } = await supabase
+    .from(WORLD_SAVES_TABLE)
+    .select("id, room_id, created_by, storage_path, base_sequence, byte_size, format_version, created_at")
+    .eq("room_id", roomId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (dbError) {
+    return { ok: false, error: `Failed to query saves: ${dbError.message}` };
+  }
+
+  if (!data) {
+    return { ok: false, error: "no_save_found" };
+  }
+
+  // Download from storage
+  const { data: fileData, error: downloadError } = await supabase.storage
+    .from(WORLD_SNAPSHOTS_BUCKET)
+    .download(data.storage_path);
+
+  if (downloadError || !fileData) {
+    return { ok: false, error: `Failed to download save: ${downloadError?.message ?? "empty file"}` };
+  }
+
+  // Decompress and deserialize
+  const compressed = new Uint8Array(await fileData.arrayBuffer());
+  const raw = await decompressSnapshot(compressed);
+  const snapshot = deserializeSnapshot(raw);
+
+  const save: WorldSaveRecord = {
+    id: data.id,
+    roomId: data.room_id,
+    createdBy: data.created_by,
+    storagePath: data.storage_path,
+    baseSequence: data.base_sequence,
+    byteSize: data.byte_size,
+    formatVersion: data.format_version,
+    createdAt: data.created_at
+  };
+
+  return { ok: true, save, snapshot };
 }

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@voxel/domain": "workspace:*",
+    "@voxel/protocol": "workspace:*",
     "@voxel/worldgen": "workspace:*",
     "three": "^0.180.0"
   },

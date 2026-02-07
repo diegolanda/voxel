@@ -1,5 +1,6 @@
 import { BlockType, CHUNK_HEIGHT, QUALITY_PRESETS } from "@voxel/domain";
 import { THEME_CONFIGS } from "@voxel/worldgen";
+import type { ChunkDiff } from "@voxel/protocol";
 import type { EngineConfig, InputState } from "./types";
 import { setupScene } from "./renderer/scene-setup";
 import { ChunkManager } from "./chunk-manager";
@@ -13,6 +14,10 @@ import type { PlayerState } from "./types";
 export interface EngineRuntimeContract {
   mount(canvas: HTMLCanvasElement): void;
   dispose(): void;
+  /** Extract all player-modified blocks for snapshot serialization. */
+  getModifiedChunkDiffs(): ChunkDiff[];
+  /** Apply saved chunk diffs on top of generated terrain (resume). */
+  applyChunkDiffs(diffs: ChunkDiff[]): void;
 }
 
 export interface EngineCallbacks {
@@ -64,6 +69,7 @@ export function createEngineRuntime(
   let mobileInput: MobileInput | null = null;
   let sceneCtx: ReturnType<typeof setupScene> | null = null;
   let chunkManager: ChunkManager | null = null;
+  const pendingDiffs: ChunkDiff[] = [];
 
   return {
     mount(canvas: HTMLCanvasElement) {
@@ -172,6 +178,16 @@ export function createEngineRuntime(
             config.theme,
           );
 
+          // Apply any pending snapshot diffs to newly loaded chunks
+          if (pendingDiffs.length > 0) {
+            const { applied, pending } = chunkManager!.filterPendingDiffs(pendingDiffs);
+            if (applied.length > 0) {
+              chunkManager!.applyChunkDiffs(applied);
+              pendingDiffs.length = 0;
+              pendingDiffs.push(...pending);
+            }
+          }
+
           // Raycast for block highlight
           blockInteraction.update();
           if (blockInteraction.currentHit) {
@@ -193,6 +209,20 @@ export function createEngineRuntime(
       });
 
       gameLoop.start();
+    },
+
+    getModifiedChunkDiffs(): ChunkDiff[] {
+      return chunkManager?.getModifiedChunkDiffs() ?? [];
+    },
+
+    applyChunkDiffs(diffs: ChunkDiff[]): void {
+      if (!chunkManager) return;
+      const { applied, pending } = chunkManager.filterPendingDiffs(diffs);
+      chunkManager.applyChunkDiffs(applied);
+      // Store pending diffs to apply when chunks load
+      if (pending.length > 0) {
+        pendingDiffs.push(...pending);
+      }
     },
 
     dispose() {

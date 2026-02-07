@@ -219,3 +219,128 @@ export function shouldApplyBlockEdit(
 
   return incomingSequence > previousSequence;
 }
+
+// ── World Snapshot Binary Format ──────────────────────────────────────
+//
+// Layout:
+//   [Header: 4 + 1 + 1 + 4 + 8 + 4 + 4 + seedLen bytes]
+//     magic      u32  "VXS\0" = 0x56585300
+//     version    u8   snapshot format version (currently 1)
+//     theme      u8   0=forest, 1=snow, 2=coast
+//     seedLen    u32  byte length of seed string (UTF-8)
+//     seed       u8[] seed bytes
+//     timestamp  f64  ms since epoch
+//     sequence   u32  host sequence at time of snapshot
+//     chunkCount u32  number of chunk diffs following
+//   [ChunkDiff: repeated chunkCount times]
+//     cx         i32  chunk X coordinate
+//     cz         i32  chunk Z coordinate
+//     entryCount u32  number of block entries
+//     [Entry: repeated entryCount times]
+//       localIdx u16  index into flat voxel array (max 16*16*64 = 16384)
+//       blockType u8  block type ID
+
+export const SNAPSHOT_MAGIC = 0x56585300;
+export const SNAPSHOT_FORMAT_VERSION = 1;
+
+const THEME_TO_INDEX: Record<string, number> = { forest: 0, snow: 1, coast: 2 };
+const INDEX_TO_THEME = ["forest", "snow", "coast"] as const;
+
+export interface ChunkDiff {
+  cx: number;
+  cz: number;
+  entries: Array<{ localIndex: number; blockType: number }>;
+}
+
+export interface WorldSnapshot {
+  formatVersion: number;
+  theme: string;
+  seed: string;
+  timestampMs: number;
+  sequence: number;
+  chunks: ChunkDiff[];
+}
+
+export function serializeSnapshot(snapshot: WorldSnapshot): Uint8Array {
+  const encoder = new TextEncoder();
+  const seedBytes = encoder.encode(snapshot.seed);
+
+  // Calculate total size
+  const headerSize = 4 + 1 + 1 + 4 + seedBytes.length + 8 + 4 + 4;
+  let chunksSize = 0;
+  for (const chunk of snapshot.chunks) {
+    chunksSize += 4 + 4 + 4 + chunk.entries.length * 3; // cx + cz + entryCount + entries
+  }
+
+  const buffer = new ArrayBuffer(headerSize + chunksSize);
+  const view = new DataView(buffer);
+  let offset = 0;
+
+  // Header
+  view.setUint32(offset, SNAPSHOT_MAGIC, false); offset += 4;
+  view.setUint8(offset, snapshot.formatVersion); offset += 1;
+  view.setUint8(offset, THEME_TO_INDEX[snapshot.theme] ?? 0); offset += 1;
+  view.setUint32(offset, seedBytes.length, false); offset += 4;
+  new Uint8Array(buffer, offset, seedBytes.length).set(seedBytes); offset += seedBytes.length;
+  view.setFloat64(offset, snapshot.timestampMs, false); offset += 8;
+  view.setUint32(offset, snapshot.sequence, false); offset += 4;
+  view.setUint32(offset, snapshot.chunks.length, false); offset += 4;
+
+  // Chunk diffs
+  for (const chunk of snapshot.chunks) {
+    view.setInt32(offset, chunk.cx, false); offset += 4;
+    view.setInt32(offset, chunk.cz, false); offset += 4;
+    view.setUint32(offset, chunk.entries.length, false); offset += 4;
+    for (const entry of chunk.entries) {
+      view.setUint16(offset, entry.localIndex, false); offset += 2;
+      view.setUint8(offset, entry.blockType); offset += 1;
+    }
+  }
+
+  return new Uint8Array(buffer);
+}
+
+export function deserializeSnapshot(data: Uint8Array): WorldSnapshot {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let offset = 0;
+
+  const magic = view.getUint32(offset, false); offset += 4;
+  if (magic !== SNAPSHOT_MAGIC) {
+    throw new Error("Invalid snapshot: bad magic number");
+  }
+
+  const formatVersion = view.getUint8(offset); offset += 1;
+  if (formatVersion !== SNAPSHOT_FORMAT_VERSION) {
+    throw new Error(`Unsupported snapshot format version: ${formatVersion}`);
+  }
+
+  const themeIndex = view.getUint8(offset); offset += 1;
+  const theme = INDEX_TO_THEME[themeIndex];
+  if (!theme) {
+    throw new Error(`Invalid theme index: ${themeIndex}`);
+  }
+
+  const seedLen = view.getUint32(offset, false); offset += 4;
+  const seedBytes = new Uint8Array(data.buffer, data.byteOffset + offset, seedLen);
+  const seed = new TextDecoder().decode(seedBytes); offset += seedLen;
+
+  const timestampMs = view.getFloat64(offset, false); offset += 8;
+  const sequence = view.getUint32(offset, false); offset += 4;
+  const chunkCount = view.getUint32(offset, false); offset += 4;
+
+  const chunks: ChunkDiff[] = [];
+  for (let i = 0; i < chunkCount; i++) {
+    const cx = view.getInt32(offset, false); offset += 4;
+    const cz = view.getInt32(offset, false); offset += 4;
+    const entryCount = view.getUint32(offset, false); offset += 4;
+    const entries: ChunkDiff["entries"] = [];
+    for (let j = 0; j < entryCount; j++) {
+      const localIndex = view.getUint16(offset, false); offset += 2;
+      const blockType = view.getUint8(offset); offset += 1;
+      entries.push({ localIndex, blockType });
+    }
+    chunks.push({ cx, cz, entries });
+  }
+
+  return { formatVersion, theme, seed, timestampMs, sequence, chunks };
+}
