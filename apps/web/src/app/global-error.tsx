@@ -17,13 +17,11 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body>
-        <main className="container">
-          <section className="card">
+        <main className="auth-wrap">
+          <section className="auth-card">
             <h1>Something went wrong</h1>
-            <p className="muted">An unexpected error occurred.</p>
-            <button className="button" onClick={reset}>
-              Try again
-            </button>
+            <p className="muted text-center">An unexpected error occurred.</p>
+            <button onClick={reset}>Try again</button>
           </section>
         </main>
       </body>

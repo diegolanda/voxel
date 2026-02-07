@@ -1,24 +1,29 @@
 import Link from "next/link";
 
 interface AuthPageProps {
-  searchParams?: {
-    error?: string;
-    notice?: string;
-    email?: string;
-  } | Promise<{
-    error?: string;
-    notice?: string;
-    email?: string;
-  }>;
+  searchParams?:
+    | {
+        error?: string;
+        notice?: string;
+        email?: string;
+      }
+    | Promise<{
+        error?: string;
+        notice?: string;
+        email?: string;
+      }>;
 }
 
 export default async function LoginPage({ searchParams }: AuthPageProps) {
   const resolvedSearchParams = await searchParams;
 
   return (
-    <main className="container">
-      <section className="card grid">
-        <h1>Sign in</h1>
+    <main className="auth-wrap">
+      <section className="auth-card">
+        <h1>Welcome back</h1>
+        <p className="muted text-center">
+          Sign in with a magic link sent to your email.
+        </p>
         {resolvedSearchParams?.error ? (
           <p className="notice error">{resolvedSearchParams.error}</p>
         ) : null}
@@ -37,39 +42,13 @@ export default async function LoginPage({ searchParams }: AuthPageProps) {
               name="email"
               defaultValue={resolvedSearchParams?.email}
               autoComplete="email"
+              placeholder="you@example.com"
             />
           </label>
-          <button type="submit">Send OTP code</button>
+          <button type="submit">Send magic link</button>
         </form>
 
-        <form action="/auth/verify-otp" method="post" className="grid">
-          <label htmlFor="login-verify-email">
-            Email
-            <input
-              id="login-verify-email"
-              required
-              type="email"
-              name="email"
-              defaultValue={resolvedSearchParams?.email}
-              autoComplete="email"
-            />
-          </label>
-          <label htmlFor="login-token">
-            OTP code
-            <input
-              id="login-token"
-              required
-              type="text"
-              name="token"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-            />
-          </label>
-          <input type="hidden" name="next" value="/login" />
-          <button type="submit">Verify and continue</button>
-        </form>
-
-        <p className="muted">
+        <p className="muted text-center">
           New here? <Link href="/signup">Create account</Link>
         </p>
       </section>

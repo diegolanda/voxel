@@ -16,7 +16,8 @@ export async function POST(request: Request) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      shouldCreateUser: true
+      shouldCreateUser: true,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
     }
   });
 
@@ -29,6 +30,6 @@ export async function POST(request: Request) {
 
   return redirectTo(request, nextPath, {
     email,
-    notice: "OTP code sent. Check your inbox."
+    notice: "Magic link sent! Check your email inbox and click the link to sign in."
   });
 }

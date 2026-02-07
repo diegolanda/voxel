@@ -14,6 +14,15 @@ import {
   SNAPSHOT_FORMAT_VERSION,
   type WorldSnapshot
 } from "@voxel/protocol";
+import {
+  readSupabaseEnvironment,
+  type SupabaseEnvironment,
+  type SupabaseEnvironmentInput
+} from "./environment";
+
+// Re-export environment types and functions for convenience
+export type { SupabaseEnvironment, SupabaseEnvironmentInput };
+export { readSupabaseEnvironment };
 
 export const SUPABASE_SCHEMA = "public";
 export const ROOM_PASSWORD_MIN_LENGTH = 8;
@@ -40,16 +49,6 @@ export const AVATAR_COLORS = [
   "#118AB2"
 ] as const;
 
-export interface SupabaseEnvironment {
-  NEXT_PUBLIC_SUPABASE_URL: string;
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
-}
-
-export type SupabaseEnvironmentInput =
-  | Partial<SupabaseEnvironment>
-  | Record<string, string | undefined>;
-
 export interface RoomCreateInput {
   name: string;
   theme: MvpTheme;
@@ -71,43 +70,16 @@ export interface LateJoinReplayQuery {
   limit: number;
 }
 
-function requireEnvValue(
-  value: string | undefined,
-  name: keyof SupabaseEnvironment
-): string {
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-export function readSupabaseEnvironment(
-  env: SupabaseEnvironmentInput
-): SupabaseEnvironment {
-  return {
-    NEXT_PUBLIC_SUPABASE_URL: requireEnvValue(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      "NEXT_PUBLIC_SUPABASE_URL"
-    ),
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: requireEnvValue(
-      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY"
-    ),
-    SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY
-  };
-}
-
 export function createServiceRoleClient(
   env: SupabaseEnvironmentInput
 ): SupabaseClient {
   const runtime = readSupabaseEnvironment(env);
-  const serviceRoleKey = requireEnvValue(
-    runtime.SUPABASE_SERVICE_ROLE_KEY,
-    "SUPABASE_SERVICE_ROLE_KEY"
-  );
+  
+  if (!runtime.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY");
+  }
 
-  return createClient(runtime.NEXT_PUBLIC_SUPABASE_URL, serviceRoleKey, {
+  return createClient(runtime.NEXT_PUBLIC_SUPABASE_URL, runtime.SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       autoRefreshToken: false,
       persistSession: false

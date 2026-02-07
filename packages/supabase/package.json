@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./environment": "./src/environment.ts"
+  },
   "scripts": {
     "build": "echo \"supabase package build pending\"",
     "lint": "echo \"supabase package lint pending\"",

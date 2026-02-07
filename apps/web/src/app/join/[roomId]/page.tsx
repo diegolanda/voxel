@@ -32,16 +32,18 @@ export default async function JoinRoomPage({ params, searchParams }: JoinPagePro
 
   const supabase = await createServerSupabaseClient();
   const {
-    data: { user }
+    data: { user },
   } = await supabase.auth.getUser();
 
   if (!token) {
     return (
-      <main className="container">
-        <section className="card">
-          <h1>Invalid invite</h1>
+      <main className="auth-wrap">
+        <section className="auth-card">
+          <h1>Invalid Invite</h1>
           <p className="notice error">Missing invite token.</p>
-          <Link href="/app">Back to dashboard</Link>
+          <Link className="button secondary" href="/app">
+            Back to dashboard
+          </Link>
         </section>
       </main>
     );
@@ -49,33 +51,53 @@ export default async function JoinRoomPage({ params, searchParams }: JoinPagePro
 
   if (!user) {
     return (
-      <main className="container">
-        <section className="card">
+      <main className="auth-wrap">
+        <section className="auth-card">
           <h1>Sign in required</h1>
-          <p className="muted">You must sign in before joining a private world.</p>
-          <Link href={`/login?notice=Sign in to join room ${resolvedParams.roomId}`}>Go to login</Link>
+          <p className="muted text-center">
+            You must sign in before joining a world.
+          </p>
+          <Link
+            className="button"
+            href={`/login?notice=Sign in to join room ${resolvedParams.roomId}`}
+          >
+            Sign in
+          </Link>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="container">
-      <section className="card grid">
-        <h1>Join room</h1>
-        <p className="muted">Room: {resolvedParams.roomId}</p>
+    <main className="auth-wrap">
+      <section className="auth-card">
+        <h1>Join World</h1>
         {error ? <p className="notice error">{error}</p> : null}
         {notice ? <p className="notice success">{notice}</p> : null}
 
-        <form action={`/api/rooms/${resolvedParams.roomId}/join`} method="post" className="grid">
+        <form
+          action={`/api/rooms/${resolvedParams.roomId}/join`}
+          method="post"
+          className="grid"
+        >
           <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="next" value={`/app/rooms/${resolvedParams.roomId}`} />
+          <input
+            type="hidden"
+            name="next"
+            value={`/app/rooms/${resolvedParams.roomId}`}
+          />
           <label htmlFor="join-password">
             World password
-            <input id="join-password" required type="password" name="password" minLength={8} />
+            <input
+              id="join-password"
+              required
+              type="password"
+              name="password"
+              minLength={8}
+              placeholder="Enter world password"
+            />
           </label>
-
-          <button type="submit">Join room</button>
+          <button type="submit">Join World</button>
         </form>
       </section>
     </main>

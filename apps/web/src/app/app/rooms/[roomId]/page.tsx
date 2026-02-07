@@ -49,7 +49,7 @@ export default async function RoomPage({ params, searchParams }: RoomPageProps) 
       .eq("room_id", room.id)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle()
+      .maybeSingle(),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -61,41 +61,54 @@ export default async function RoomPage({ params, searchParams }: RoomPageProps) 
 
   return (
     <main className="container">
-      <section className="card row">
-        <div>
-          <h1>{room.name}</h1>
-          <p className="muted">
-            Theme: {room.theme} | Seed: {room.seed} | Status: {room.status}
-          </p>
-        </div>
+      <section className="card">
         <div className="row">
-          <Link className="button secondary" href="/app">
-            Back to dashboard
-          </Link>
-          <Link className="button" href={`/play/${room.id}`}>
-            {hasSave ? "Resume" : "Launch"}
-          </Link>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+              <h1 style={{ margin: 0 }}>{room.name}</h1>
+              <span className={`badge theme-${room.theme}`}>{room.theme}</span>
+              <span className="badge status-active">{room.status}</span>
+            </div>
+            <div className="stat-row" style={{ marginTop: "0.5rem" }}>
+              <div className="stat">
+                <span className="stat-label">Seed</span>
+                <span className="stat-value">{room.seed}</span>
+              </div>
+              <div className="stat">
+                <span className="stat-label">Players</span>
+                <span className="stat-value">
+                  {members?.length ?? 0}/{room.max_players}
+                </span>
+              </div>
+              {hasSave && latestSave && (
+                <div className="stat">
+                  <span className="stat-label">Last Save</span>
+                  <span className="stat-value">
+                    {Math.round(latestSave.byte_size / 1024)} KB
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="row">
+            <Link className="button secondary" href="/app">
+              Back
+            </Link>
+            <Link className="button" href={`/play/${room.id}`}>
+              {hasSave ? "Resume" : "Launch"}
+            </Link>
+          </div>
         </div>
       </section>
 
       {error ? <p className="notice error">{error}</p> : null}
       {notice ? <p className="notice success">{notice}</p> : null}
 
-      <section className="card">
-        <h2>Invite link</h2>
-        <p className="muted">Share this URL with your guests:</p>
-        <p>{inviteUrl}</p>
+      <section className="card grid">
+        <h2>Invite Link</h2>
+        <div className="invite-box">{inviteUrl}</div>
+        <p className="muted">Share this link with players you want to invite.</p>
       </section>
-
-      {hasSave && latestSave && (
-        <section className="card">
-          <h2>Last save</h2>
-          <p className="muted">
-            Saved: {new Date(latestSave.created_at).toLocaleString()} | Size: {Math.round(latestSave.byte_size / 1024)} KB
-          </p>
-          <p className="muted">Launching will automatically resume from this save.</p>
-        </section>
-      )}
 
       <section className="card grid">
         <h2>Members</h2>
@@ -106,32 +119,51 @@ export default async function RoomPage({ params, searchParams }: RoomPageProps) 
                 ? member.profiles[0]
                 : member.profiles;
               const canKick = isHost && member.role === "guest";
+              const initial = (profile?.display_name ?? "?")[0].toUpperCase();
+              const color = profile?.avatar_color ?? "#6b7280";
 
               return (
-                <article key={member.user_id} className="card row">
-                  <div>
-                    <p>
-                      <strong>{profile?.display_name ?? member.user_id.slice(0, 8)}</strong> ({member.role})
-                    </p>
-                    <p className="muted">{member.user_id}</p>
-                    <p className="muted">Avatar: {profile?.avatar_color ?? "unknown"}</p>
+                <div key={member.user_id} className="member-row">
+                  <div className="member-info">
+                    <div
+                      className="member-avatar"
+                      style={{ background: color }}
+                    >
+                      {initial}
+                    </div>
+                    <div className="member-details">
+                      <p className="member-name">
+                        {profile?.display_name ?? member.user_id.slice(0, 8)}
+                      </p>
+                      <span className={`badge role-${member.role}`}>
+                        {member.role}
+                      </span>
+                    </div>
                   </div>
 
                   {canKick ? (
                     <form action={`/api/rooms/${room.id}/kick`} method="post">
-                      <input type="hidden" name="targetUserId" value={member.user_id} />
-                      <input type="hidden" name="next" value={`/app/rooms/${room.id}`} />
+                      <input
+                        type="hidden"
+                        name="targetUserId"
+                        value={member.user_id}
+                      />
+                      <input
+                        type="hidden"
+                        name="next"
+                        value={`/app/rooms/${room.id}`}
+                      />
                       <button className="danger" type="submit">
                         Kick
                       </button>
                     </form>
                   ) : null}
-                </article>
+                </div>
               );
             })}
           </div>
         ) : (
-          <p className="muted">No members found.</p>
+          <p className="muted">No members yet.</p>
         )}
       </section>
     </main>

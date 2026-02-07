@@ -16,18 +16,16 @@ export default function PlayError({
   }, [error]);
 
   return (
-    <main className="container">
-      <section className="card grid">
-        <h1>Game session error</h1>
-        <p className="muted">
+    <main className="auth-wrap">
+      <section className="auth-card">
+        <h1>Session Error</h1>
+        <p className="muted text-center">
           Something went wrong during your game session.
         </p>
-        <div className="row">
-          <button className="button" onClick={reset}>
-            Retry
-          </button>
+        <div className="row" style={{ justifyContent: "center" }}>
+          <button onClick={reset}>Retry</button>
           <Link className="button secondary" href="/app">
-            Back to dashboard
+            Dashboard
           </Link>
         </div>
       </section>

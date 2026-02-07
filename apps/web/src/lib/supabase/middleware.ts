@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { readSupabaseEnvironment } from "@voxel/supabase";
+import { readSupabaseEnvironment } from "@voxel/supabase/environment";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function updateSupabaseSession(request: NextRequest) {

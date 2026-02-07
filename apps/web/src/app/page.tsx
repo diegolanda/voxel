@@ -2,44 +2,51 @@ import Link from "next/link";
 
 export default function LandingPage() {
   return (
-    <main className="container">
-      <section className="card">
-        <h1>Voxel Worlds</h1>
-        <p className="muted">
-          Private shared voxel spaces for teams and friends. Create a room, set a world
-          password, share an invite token, and build together.
+    <>
+      <section className="hero">
+        <h1 className="hero-title">Voxel Worlds</h1>
+        <p className="hero-subtitle">
+          Build together in private voxel spaces. Create a world, invite your
+          team, and start crafting in real time.
         </p>
-        <div className="row">
+        <div className="hero-actions">
           <Link className="button" href="/signup">
-            Create account
+            Get Started
           </Link>
           <Link className="button secondary" href="/login">
-            Sign in
+            Sign In
           </Link>
         </div>
       </section>
 
-      <section className="card grid two">
-        <article>
-          <h2>Phase 1 Foundation</h2>
-          <ul className="list">
-            <li>Email OTP authentication</li>
-            <li>Private room creation with invite token + password hash</li>
-            <li>Room membership + host moderation controls</li>
-          </ul>
-        </article>
-        <article>
-          <h2>Policy</h2>
-          <p className="muted">
-            Worlds are private. Access requires an invite token and valid password. Hosts can
-            manage members.
+      <div className="features">
+        <div className="feature-card">
+          <h3>Private Worlds</h3>
+          <p>
+            Every world is protected by invite tokens and passwords. Only
+            approved members can join your space.
           </p>
-          <div className="row">
-            <Link href="/terms">Terms</Link>
-            <Link href="/privacy">Privacy</Link>
-          </div>
-        </article>
-      </section>
-    </main>
+        </div>
+        <div className="feature-card">
+          <h3>Real-time Multiplayer</h3>
+          <p>
+            Build with up to 5 players simultaneously using WebRTC peer-to-peer
+            connections and spatial voice.
+          </p>
+        </div>
+        <div className="feature-card">
+          <h3>Persistent Worlds</h3>
+          <p>
+            Save your progress and resume any time. Your creations are always
+            waiting for you.
+          </p>
+        </div>
+      </div>
+
+      <footer className="site-footer">
+        <Link href="/terms">Terms</Link>
+        <Link href="/privacy">Privacy</Link>
+      </footer>
+    </>
   );
 }
