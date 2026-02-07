@@ -1,3 +1,6 @@
+export * from "./errors";
+export * from "./device-profile";
+
 export const MVP_THEMES = ["forest", "snow", "coast"] as const;
 export type MvpTheme = (typeof MVP_THEMES)[number];
 

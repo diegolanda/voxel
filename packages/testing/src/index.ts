@@ -1,1 +1,1 @@
-export const E2E_BOOTSTRAP = "pending";
+export const E2E_READY = true;

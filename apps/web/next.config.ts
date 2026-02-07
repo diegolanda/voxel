@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     "@voxel/voice",
     "@voxel/worldgen"
   ],
+  output: "standalone",
   turbopack: {},
   typescript: {
     // Pre-existing type errors in supabase package; our engine code is clean

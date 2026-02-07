@@ -25,5 +25,9 @@ pnpm-debug.log*
 .vscode
 .idea
 
+# Playwright
+test-results
+playwright-report
+
 # Turbo
 .turbo

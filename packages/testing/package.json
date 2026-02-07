@@ -7,7 +7,8 @@
     "build": "echo \"testing build not required\"",
     "lint": "echo \"testing lint pending\"",
     "typecheck": "echo \"testing typecheck pending\"",
-    "test": "echo \"testing package tests pending\"",
+    "test": "playwright test",
+    "test:install": "playwright install chromium",
     "format": "echo \"format via root tooling\"",
     "format:check": "echo \"format check via root tooling\"",
     "clean": "rm -rf dist"

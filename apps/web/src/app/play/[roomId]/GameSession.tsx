@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MvpTheme } from "@voxel/domain";
+import { detectDeviceProfile, recommendQualityPreset } from "@voxel/domain";
 import type { PlayerState } from "@voxel/engine";
 import {
   serializeSnapshot,
@@ -23,6 +24,7 @@ import {
   type RealtimeConnectionStatus,
   type RoomTurnConfig
 } from "../../../lib/realtime/room-realtime-session";
+import { reportError } from "../../../lib/error-reporter";
 
 interface GameSessionProps {
   theme: MvpTheme;
@@ -75,6 +77,13 @@ export function GameSession({
     setSeed(seed);
   }, [theme, seed, setTheme, setSeed]);
 
+  // Auto-detect quality preset from device profile on mount
+  useEffect(() => {
+    const profile = detectDeviceProfile();
+    const preset = recommendQualityPreset(profile);
+    useGameStore.getState().setQuality(preset);
+  }, []);
+
   // Load existing save on mount
   useEffect(() => {
     let cancelled = false;
@@ -96,8 +105,8 @@ export function GameSession({
         };
         // Give initial chunks time to generate before applying diffs
         setTimeout(waitForEngine, 1000);
-      } catch {
-        // Silently ignore load failures on mount
+      } catch (err) {
+        reportError(err, { phase: "save-load", roomId });
       }
     }
     void loadSave();
@@ -110,7 +119,10 @@ export function GameSession({
       onConnectionStatusChange: setConnectionStatus,
       onPeerCountChange: setPeerCount,
       onVoicePermissionChange: setVoicePermission,
-      onError: setLastError
+      onError: (msg) => {
+        reportError(new Error(msg), { phase: "realtime", roomId });
+        setLastError(msg);
+      }
     });
     sessionRef.current = session;
     void session.start();
@@ -176,6 +188,7 @@ export function GameSession({
         setTimeout(() => setSaveNotice(null), 5000);
       }
     } catch (err) {
+      reportError(err, { phase: "save", roomId });
       setSaveNotice(err instanceof Error ? err.message : "Save failed");
       setTimeout(() => setSaveNotice(null), 5000);
     } finally {

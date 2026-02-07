@@ -27,6 +27,10 @@
     "format:check": {
       "outputs": []
     },
+    "e2e": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "clean": {
       "cache": false
     }
