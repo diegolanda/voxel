@@ -16,6 +16,10 @@ export const ROOM_DEFAULT_STATUS = "lobby";
 export const JOIN_RATE_LIMIT_MAX_ATTEMPTS = 5;
 export const JOIN_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
 export const PASSWORD_HASH_ITERATIONS = 120_000;
+export const ROOM_SNAPSHOTS_TABLE = "room_snapshots";
+export const ROOM_EVENTS_TABLE = "room_events";
+export const LATE_JOIN_REPLAY_DEFAULT_LIMIT = 500;
+export const LATE_JOIN_REPLAY_MAX_LIMIT = 2_000;
 
 export const AVATAR_COLORS = [
   "#2A9D8F",
@@ -33,11 +37,29 @@ export interface SupabaseEnvironment {
   SUPABASE_SERVICE_ROLE_KEY?: string;
 }
 
+export type SupabaseEnvironmentInput =
+  | Partial<SupabaseEnvironment>
+  | Record<string, string | undefined>;
+
 export interface RoomCreateInput {
   name: string;
   theme: MvpTheme;
   password: string;
   seed: string;
+}
+
+export interface LateJoinSnapshotRecord {
+  roomId: string;
+  snapshotId: string;
+  storagePath: string;
+  baseSequence: number;
+  createdAt: string;
+}
+
+export interface LateJoinReplayQuery {
+  roomId: string;
+  minSequenceExclusive: number;
+  limit: number;
 }
 
 function requireEnvValue(
@@ -52,7 +74,7 @@ function requireEnvValue(
 }
 
 export function readSupabaseEnvironment(
-  env: Partial<SupabaseEnvironment>
+  env: SupabaseEnvironmentInput
 ): SupabaseEnvironment {
   return {
     NEXT_PUBLIC_SUPABASE_URL: requireEnvValue(
@@ -68,7 +90,7 @@ export function readSupabaseEnvironment(
 }
 
 export function createServiceRoleClient(
-  env: Partial<SupabaseEnvironment>
+  env: SupabaseEnvironmentInput
 ): SupabaseClient {
   const runtime = readSupabaseEnvironment(env);
   const serviceRoleKey = requireEnvValue(
@@ -192,6 +214,13 @@ function timingSafeEqual(left: Uint8Array, right: Uint8Array): boolean {
   return mismatch === 0;
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+}
+
 async function derivePasswordHash(
   password: string,
   salt: Uint8Array,
@@ -210,7 +239,7 @@ async function derivePasswordHash(
       hash: "SHA-256",
       iterations,
       name: "PBKDF2",
-      salt
+      salt: toArrayBuffer(salt)
     },
     key,
     256
@@ -283,4 +312,43 @@ export async function createJoinAttemptKey(
 
 export function hasReachedWorldCap(existingRoomCount: number): boolean {
   return existingRoomCount >= MAX_WORLDS_PER_ACCOUNT;
+}
+
+export function normalizeLateJoinReplayLimit(limit?: number): number {
+  const resolved = limit ?? LATE_JOIN_REPLAY_DEFAULT_LIMIT;
+  if (
+    !Number.isInteger(resolved) ||
+    resolved <= 0 ||
+    resolved > LATE_JOIN_REPLAY_MAX_LIMIT
+  ) {
+    throw new Error(
+      `Replay limit must be an integer between 1 and ${LATE_JOIN_REPLAY_MAX_LIMIT}`
+    );
+  }
+
+  return resolved;
+}
+
+export function createLateJoinReplayQuery(input: {
+  roomId: string;
+  snapshotBaseSequence: number;
+  limit?: number;
+}): LateJoinReplayQuery {
+  const roomId = input.roomId.trim();
+  if (roomId.length === 0) {
+    throw new Error("roomId is required");
+  }
+
+  if (
+    !Number.isInteger(input.snapshotBaseSequence) ||
+    input.snapshotBaseSequence < 0
+  ) {
+    throw new Error("snapshotBaseSequence must be a non-negative integer");
+  }
+
+  return {
+    roomId,
+    minSequenceExclusive: input.snapshotBaseSequence,
+    limit: normalizeLateJoinReplayLimit(input.limit)
+  };
 }

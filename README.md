@@ -6,6 +6,7 @@ Workspace for the **Voxel Worlds MVP** PRD (updated February 6, 2026).
 - Workspace and task-runner setup (`pnpm` + `turbo`)
 - Supabase schema + RLS for profiles, rooms, and room membership
 - Next.js Phase 1 flows: email OTP auth, dashboard, room create/join, invite join, host kick
+- Phase 3 contracts for signaling, TURN-gated mesh session planning, sync interpolation, late-join replay, and spatial voice APIs
 - MVP task definition and phased delivery plan
 
 ## Monorepo layout

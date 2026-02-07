@@ -29,6 +29,73 @@
   border-radius: 4px;
 }
 
+.network {
+  position: absolute;
+  top: 44px;
+  left: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.error {
+  position: absolute;
+  top: 120px;
+  left: 8px;
+  max-width: 340px;
+  font-size: 12px;
+  color: #ffd0d0;
+  background: rgba(90, 0, 0, 0.65);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.voicePanel {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 240px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.52);
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+.voiceTitle {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.voiceButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.voiceButtons button {
+  font-family: monospace;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 4px 6px;
+}
+
+.voiceRow {
+  display: grid;
+  gap: 4px;
+}
+
+.voiceRow input[type="range"] {
+  width: 100%;
+}
+
 .blockLabel {
   position: absolute;
   top: calc(50% + 24px);

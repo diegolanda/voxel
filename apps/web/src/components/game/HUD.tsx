@@ -2,14 +2,56 @@
 
 import { useGameStore } from "../../store/game-store";
 import { HOTBAR_BLOCKS, BLOCK_NAMES } from "@voxel/engine";
+import type { VoiceSettings } from "@voxel/voice";
+import type { VoiceHudControlHandlers, VoiceHudViewModel } from "@voxel/ui";
+import type { RealtimeConnectionStatus } from "../../lib/realtime/room-realtime-session";
 import styles from "./HUD.module.css";
 
 const HOTBAR_LABELS = HOTBAR_BLOCKS.map((b) => BLOCK_NAMES[b] ?? "?");
 
-export function HUD() {
+interface HUDProps {
+  network?: {
+    connectionStatus: RealtimeConnectionStatus;
+    peerCount: number;
+    roomId: string;
+  };
+  voice?: {
+    permission: VoiceHudViewModel["permission"];
+    settings: VoiceSettings;
+    onEnable: () => void;
+    onDisable: () => void;
+    onSettingsChange: (next: Partial<VoiceSettings>) => void;
+  };
+  errorMessage?: string | null;
+}
+
+export function HUD({ network, voice, errorMessage }: HUDProps) {
   const fps = useGameStore((s) => s.fps);
   const selectedSlot = useGameStore((s) => s.selectedSlot);
   const hitBlockName = useGameStore((s) => s.hitBlockName);
+  const voiceViewModel: VoiceHudViewModel | null = voice
+    ? {
+        muted: voice.settings.muted,
+        volume: voice.settings.volume,
+        proximityRadius: voice.settings.proximityRadius,
+        permission: voice.permission
+      }
+    : null;
+  const voiceHandlers: VoiceHudControlHandlers | null = voice
+    ? {
+        onToggleMute: () => {
+          voice.onSettingsChange({ muted: !voice.settings.muted });
+        },
+        onVolumeChange: (nextVolume: number) => {
+          voice.onSettingsChange({ volume: nextVolume });
+        },
+        onProximityRadiusChange: (nextRadius: number) => {
+          voice.onSettingsChange({ proximityRadius: nextRadius });
+        }
+      }
+    : null;
+  const onEnableVoice = voice ? voice.onEnable : null;
+  const onDisableVoice = voice ? voice.onDisable : null;
 
   return (
     <div className={styles.hud}>
@@ -18,6 +60,68 @@ export function HUD() {
 
       {/* FPS counter */}
       <div className={styles.fps}>{fps} FPS</div>
+      {network && (
+        <div className={styles.network}>
+          <div>Room: {network.roomId.slice(0, 8)}</div>
+          <div>Status: {network.connectionStatus}</div>
+          <div>Peers: {network.peerCount + 1}/5</div>
+        </div>
+      )}
+      {errorMessage && <div className={styles.error}>{errorMessage}</div>}
+      {voiceViewModel && voiceHandlers && (
+        <div className={styles.voicePanel}>
+          <div className={styles.voiceTitle}>Voice</div>
+          <div className={styles.voiceRow}>Permission: {voiceViewModel.permission}</div>
+          <div className={styles.voiceButtons}>
+            <button
+              type="button"
+              onClick={onEnableVoice ?? undefined}
+            >
+              Enable Mic
+            </button>
+            <button
+              type="button"
+              onClick={onDisableVoice ?? undefined}
+            >
+              Disable Mic
+            </button>
+            <button
+              type="button"
+              onClick={voiceHandlers.onToggleMute}
+            >
+              {voiceViewModel.muted ? "Unmute" : "Mute"}
+            </button>
+          </div>
+          <label className={styles.voiceRow}>
+            Volume
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={voiceViewModel.volume}
+              onChange={(event) => {
+                voiceHandlers.onVolumeChange(Number(event.currentTarget.value));
+              }}
+            />
+          </label>
+          <label className={styles.voiceRow}>
+            Radius
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={1}
+              value={voiceViewModel.proximityRadius}
+              onChange={(event) => {
+                voiceHandlers.onProximityRadiusChange(
+                  Number(event.currentTarget.value)
+                );
+              }}
+            />
+          </label>
+        </div>
+      )}
 
       {/* Block highlight label */}
       {hitBlockName && (

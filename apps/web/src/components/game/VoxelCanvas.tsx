@@ -3,15 +3,22 @@
 import { useRef, useEffect } from "react";
 import { createEngineRuntime } from "@voxel/engine";
 import type { MvpTheme, QualityPreset } from "@voxel/domain";
+import type { PlayerState } from "@voxel/engine";
 import { useGameStore } from "../../store/game-store";
 
 interface VoxelCanvasProps {
   theme: MvpTheme;
   seed: string;
   quality: QualityPreset;
+  onPlayerStateChange?: (state: PlayerState) => void;
 }
 
-export function VoxelCanvas({ theme, seed, quality }: VoxelCanvasProps) {
+export function VoxelCanvas({
+  theme,
+  seed,
+  quality,
+  onPlayerStateChange
+}: VoxelCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const setFps = useGameStore((s) => s.setFps);
   const setSelectedSlot = useGameStore((s) => s.setSelectedSlot);
@@ -27,6 +34,7 @@ export function VoxelCanvas({ theme, seed, quality }: VoxelCanvasProps) {
         onFps: setFps,
         onSlotChange: setSelectedSlot,
         onHitBlockChange: setHitBlockName,
+        onPlayerStateChange
       },
     );
 
@@ -35,7 +43,15 @@ export function VoxelCanvas({ theme, seed, quality }: VoxelCanvasProps) {
     return () => {
       runtime.dispose();
     };
-  }, [theme, seed, quality, setFps, setSelectedSlot, setHitBlockName]);
+  }, [
+    theme,
+    seed,
+    quality,
+    onPlayerStateChange,
+    setFps,
+    setSelectedSlot,
+    setHitBlockName
+  ]);
 
   return (
     <canvas

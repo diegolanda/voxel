@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@voxel/engine", "@voxel/worldgen", "@voxel/domain"],
+  transpilePackages: [
+    "@voxel/domain",
+    "@voxel/engine",
+    "@voxel/protocol",
+    "@voxel/realtime",
+    "@voxel/supabase",
+    "@voxel/ui",
+    "@voxel/voice",
+    "@voxel/worldgen"
+  ],
   turbopack: {},
   typescript: {
     // Pre-existing type errors in supabase package; our engine code is clean

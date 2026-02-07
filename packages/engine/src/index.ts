@@ -8,6 +8,7 @@ import { MobileInput } from "./input/mobile-input";
 import { createPlayerState, updatePlayer } from "./physics/player-controller";
 import { BlockInteraction } from "./interaction/block-interaction";
 import { GameLoop } from "./game-loop";
+import type { PlayerState } from "./types";
 
 export interface EngineRuntimeContract {
   mount(canvas: HTMLCanvasElement): void;
@@ -18,6 +19,7 @@ export interface EngineCallbacks {
   onFps?: (fps: number) => void;
   onSlotChange?: (slot: number) => void;
   onHitBlockChange?: (blockName: string | null) => void;
+  onPlayerStateChange?: (state: PlayerState) => void;
 }
 
 const BLOCK_NAMES: Record<number, string> = {
@@ -145,6 +147,7 @@ export function createEngineRuntime(
             dt,
             (x, y, z) => chunkManager!.getBlock(x, y, z),
           );
+          callbacks?.onPlayerStateChange?.(playerState);
 
           // Clear input deltas
           if (isTouch) {
@@ -209,4 +212,5 @@ export function createEngineRuntime(
 }
 
 export type { EngineConfig } from "./types";
+export type { PlayerState } from "./types";
 export { HOTBAR_BLOCKS, BLOCK_NAMES };
