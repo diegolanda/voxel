@@ -3,13 +3,14 @@ import type { InputState, PlayerState } from "../types";
 
 const MOUSE_SENSITIVITY = 0.002;
 const TOUCH_SENSITIVITY = 0.004;
-const WALK_SPEED = 4.3;
-const SPRINT_SPEED = 5.6;
+const WALK_SPEED = 6.8;
+const SPRINT_SPEED = 9.2;
 const GRAVITY = -32;
 const JUMP_VELOCITY = 10;
 const PLAYER_WIDTH = 0.6;
 const PLAYER_HEIGHT = 1.8;
 const HALF_WIDTH = PLAYER_WIDTH / 2;
+const SUPPORT_EPSILON = 0.05;
 
 export type GetBlockFn = (x: number, y: number, z: number) => BlockType;
 
@@ -59,6 +60,28 @@ function boxCollides(
   return false;
 }
 
+function hasGroundSupport(
+  x: number,
+  y: number,
+  z: number,
+  getBlock: GetBlockFn,
+): boolean {
+  const supportY = Math.floor(y - SUPPORT_EPSILON);
+  const offsets = [-HALF_WIDTH * 0.9, HALF_WIDTH * 0.9];
+
+  for (const ox of offsets) {
+    for (const oz of offsets) {
+      const block = getBlock(
+        Math.floor(x + ox),
+        supportY,
+        Math.floor(z + oz),
+      );
+      if (isSolid(block)) return true;
+    }
+  }
+  return false;
+}
+
 export function updatePlayer(
   state: PlayerState,
   input: InputState,
@@ -100,10 +123,13 @@ export function updatePlayer(
   const sinYaw = Math.sin(yaw);
   const cosYaw = Math.cos(yaw);
   const speed = input.sprint ? SPRINT_SPEED : WALK_SPEED;
-  vx = (moveX * cosYaw - moveZ * sinYaw) * speed;
-  vz = (moveX * sinYaw + moveZ * cosYaw) * speed;
+  vx = (moveX * cosYaw + moveZ * sinYaw) * speed;
+  vz = (-moveX * sinYaw + moveZ * cosYaw) * speed;
 
   // Gravity
+  if (state.onGround && vy < 0) {
+    vy = 0;
+  }
   vy += GRAVITY * dt;
 
   // Jump
@@ -137,11 +163,24 @@ export function updatePlayer(
     if (vy < 0) {
       // Landing
       onGround = true;
-      newY = Math.floor(py) + 0.001; // Snap to ground
+      // Snap to the next whole voxel boundary (top face), then resolve rare deep penetrations.
+      newY = Math.floor(newY) + 1;
+      let guard = 0;
+      while (boxCollides(newX - HALF_WIDTH, newY, newZ - HALF_WIDTH, getBlock) && guard < 6) {
+        newY += 1;
+        guard++;
+      }
     } else {
+      // Ceiling hit
       newY = py;
     }
     vy = 0;
+  }
+
+  // Keep grounded state stable when standing still on terrain.
+  if (!onGround && vy <= 0 && hasGroundSupport(newX, newY, newZ, getBlock)) {
+    onGround = true;
+    if (vy < 0) vy = 0;
   }
 
   return {

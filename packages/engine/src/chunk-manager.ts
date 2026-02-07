@@ -47,11 +47,14 @@ export class ChunkManager {
 
   private onChunkGenerated(coord: ChunkCoord, voxelData: Uint8Array): void {
     const key = chunkKey(coord);
-    this.chunkData.set(key, voxelData);
+    // Keep an owned copy on main thread for collision/block queries.
+    const localCopy = new Uint8Array(voxelData);
+    this.chunkData.set(key, localCopy);
 
-    // Request meshing
-    const msg: WorkerRequest = { type: "mesh", coord, voxelData };
-    this.worker.postMessage(msg, [voxelData.buffer] as unknown as Transferable[]);
+    // Transfer a separate copy to worker for meshing.
+    const meshInput = new Uint8Array(voxelData);
+    const msg: WorkerRequest = { type: "mesh", coord, voxelData: meshInput };
+    this.worker.postMessage(msg, [meshInput.buffer] as unknown as Transferable[]);
   }
 
   private onChunkMeshed(
@@ -145,7 +148,8 @@ export class ChunkManager {
     if (lz < 0) lz += CHUNK_DEPTH;
 
     const idx = Math.floor(worldY) * (CHUNK_WIDTH * CHUNK_DEPTH) + Math.floor(lz) * CHUNK_WIDTH + Math.floor(lx);
-    return data[idx] as BlockType;
+    if (idx < 0 || idx >= data.length) return BlockType.Air;
+    return (data[idx] ?? BlockType.Air) as BlockType;
   }
 
   setBlock(worldX: number, worldY: number, worldZ: number, blockType: BlockType): void {

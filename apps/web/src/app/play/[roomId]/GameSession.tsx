@@ -153,6 +153,18 @@ export function GameSession({
     });
   }, []);
 
+  const handleBreak = useCallback(() => {
+    canvasRef.current?.breakBlock();
+  }, []);
+
+  const handlePlace = useCallback(() => {
+    canvasRef.current?.placeBlock();
+  }, []);
+
+  const handleJump = useCallback(() => {
+    canvasRef.current?.jump();
+  }, []);
+
   const handleSave = useCallback(async () => {
     const runtime = canvasRef.current?.getRuntime();
     if (!runtime || saving) return;
@@ -225,7 +237,11 @@ export function GameSession({
         } : undefined}
         errorMessage={lastError}
       />
-      <TouchControls />
+      <TouchControls
+        onBreak={handleBreak}
+        onPlace={handlePlace}
+        onJump={handleJump}
+      />
     </div>
   );
 }

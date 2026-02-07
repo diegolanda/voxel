@@ -14,6 +14,15 @@ import type { PlayerState } from "./types";
 export interface EngineRuntimeContract {
   mount(canvas: HTMLCanvasElement): void;
   dispose(): void;
+  /** Trigger a block break at current crosshair target. */
+  breakBlock(): boolean;
+  /** Place currently selected block at current crosshair target. */
+  placeBlock(): boolean;
+  /** Trigger jump on next simulation tick. */
+  jump(): void;
+  /** Select hotbar slot by index (0-8). */
+  selectSlot(slot: number): void;
+  getSelectedSlot(): number;
   /** Extract all player-modified blocks for snapshot serialization. */
   getModifiedChunkDiffs(): ChunkDiff[];
   /** Apply saved chunk diffs on top of generated terrain (resume). */
@@ -70,6 +79,27 @@ export function createEngineRuntime(
   let sceneCtx: ReturnType<typeof setupScene> | null = null;
   let chunkManager: ChunkManager | null = null;
   const pendingDiffs: ChunkDiff[] = [];
+  let selectedSlot = 0;
+  let queuedJump = false;
+  let blockInteraction: BlockInteraction | null = null;
+
+  const applySlotSelection = (slot: number) => {
+    const clamped = Math.max(0, Math.min(HOTBAR_BLOCKS.length - 1, slot));
+    selectedSlot = clamped;
+    callbacks?.onSlotChange?.(clamped);
+  };
+
+  const handleBreak = (): boolean => {
+    if (!blockInteraction) return false;
+    blockInteraction.update();
+    return blockInteraction.breakBlock();
+  };
+
+  const handlePlace = (): boolean => {
+    if (!blockInteraction) return false;
+    blockInteraction.update();
+    return blockInteraction.placeBlock(HOTBAR_BLOCKS[selectedSlot]);
+  };
 
   return {
     mount(canvas: HTMLCanvasElement) {
@@ -92,9 +122,6 @@ export function createEngineRuntime(
       // Player state — spawn at center, high up so we fall to terrain
       let playerState = createPlayerState(8, CHUNK_HEIGHT - 1, 8);
 
-      // Selected block for placement
-      let selectedSlot = 0;
-
       // Determine camera look direction from yaw/pitch
       const getCameraDirection = (): [number, number, number] => {
         const [yaw, pitch] = playerState.rotation;
@@ -106,17 +133,8 @@ export function createEngineRuntime(
       };
 
       // Block interaction
-      const blockInteraction = new BlockInteraction(chunkManager, camera, getCameraDirection);
-
-      const handleBreak = () => {
-        blockInteraction.update();
-        blockInteraction.breakBlock();
-      };
-
-      const handlePlace = () => {
-        blockInteraction.update();
-        blockInteraction.placeBlock(HOTBAR_BLOCKS[selectedSlot]);
-      };
+      blockInteraction = new BlockInteraction(chunkManager, camera, getCameraDirection);
+      applySlotSelection(selectedSlot);
 
       // Input
       const isTouch = isTouchDevice();
@@ -128,8 +146,7 @@ export function createEngineRuntime(
       } else {
         desktopInput = new DesktopInput(canvas, {
           onSlotChange: (slot) => {
-            selectedSlot = slot;
-            callbacks?.onSlotChange?.(slot);
+            applySlotSelection(slot);
           },
           onLeftClick: handleBreak,
           onRightClick: handlePlace,
@@ -145,6 +162,10 @@ export function createEngineRuntime(
           const input: InputState = isTouch
             ? mobileInput!.getState()
             : desktopInput!.getState();
+          if (queuedJump) {
+            input.jump = true;
+            queuedJump = false;
+          }
 
           // Update player
           playerState = updatePlayer(
@@ -189,12 +210,14 @@ export function createEngineRuntime(
           }
 
           // Raycast for block highlight
-          blockInteraction.update();
-          if (blockInteraction.currentHit) {
+          const interaction = blockInteraction;
+          if (!interaction) return;
+          interaction.update();
+          if (interaction.currentHit) {
             const hitBlock = chunkManager!.getBlock(
-              blockInteraction.currentHit.hit.x,
-              blockInteraction.currentHit.hit.y,
-              blockInteraction.currentHit.hit.z,
+              interaction.currentHit.hit.x,
+              interaction.currentHit.hit.y,
+              interaction.currentHit.hit.z,
             );
             callbacks?.onHitBlockChange?.(BLOCK_NAMES[hitBlock] ?? null);
           } else {
@@ -209,6 +232,27 @@ export function createEngineRuntime(
       });
 
       gameLoop.start();
+    },
+
+    breakBlock(): boolean {
+      return handleBreak();
+    },
+
+    placeBlock(): boolean {
+      return handlePlace();
+    },
+
+    jump(): void {
+      queuedJump = true;
+      mobileInput?.triggerJump();
+    },
+
+    selectSlot(slot: number): void {
+      applySlotSelection(slot);
+    },
+
+    getSelectedSlot(): number {
+      return selectedSlot;
     },
 
     getModifiedChunkDiffs(): ChunkDiff[] {
@@ -237,6 +281,7 @@ export function createEngineRuntime(
       mobileInput = null;
       chunkManager = null;
       sceneCtx = null;
+      blockInteraction = null;
     },
   };
 }

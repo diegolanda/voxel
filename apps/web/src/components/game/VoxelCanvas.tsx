@@ -15,6 +15,10 @@ interface VoxelCanvasProps {
 
 export interface VoxelCanvasHandle {
   getRuntime(): EngineRuntimeContract | null;
+  breakBlock(): boolean;
+  placeBlock(): boolean;
+  jump(): void;
+  selectSlot(slot: number): void;
 }
 
 export const VoxelCanvas = forwardRef<VoxelCanvasHandle, VoxelCanvasProps>(
@@ -26,7 +30,11 @@ export const VoxelCanvas = forwardRef<VoxelCanvasHandle, VoxelCanvasProps>(
     const setHitBlockName = useGameStore((s) => s.setHitBlockName);
 
     useImperativeHandle(ref, () => ({
-      getRuntime: () => runtimeRef.current
+      getRuntime: () => runtimeRef.current,
+      breakBlock: () => runtimeRef.current?.breakBlock() ?? false,
+      placeBlock: () => runtimeRef.current?.placeBlock() ?? false,
+      jump: () => runtimeRef.current?.jump(),
+      selectSlot: (slot) => runtimeRef.current?.selectSlot(slot),
     }));
 
     useEffect(() => {

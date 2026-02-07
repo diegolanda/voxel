@@ -177,8 +177,8 @@ export function greedyMesh(voxelData: Uint8Array): MeshData {
           }
           uvs.push(
             au, av + TILE_UV,
-            au + TILE_UV * w, av + TILE_UV,
-            au + TILE_UV * w, av,
+            au + TILE_UV, av + TILE_UV,
+            au + TILE_UV, av,
             au, av,
           );
 

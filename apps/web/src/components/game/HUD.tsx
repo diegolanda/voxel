@@ -86,6 +86,15 @@ export function HUD({ network, voice, save, errorMessage }: HUDProps) {
         </div>
       )}
       {errorMessage && <div className={styles.error}>{errorMessage}</div>}
+      <div className={styles.controls}>
+        <div>Move: WASD / Arrows</div>
+        <div>Lock Cursor: Click World</div>
+        <div>Look: Mouse</div>
+        <div>Jump: Space</div>
+        <div>Break: Left Click</div>
+        <div>Place: Right Click</div>
+        <div>Hotbar: 1-9</div>
+      </div>
       {voiceViewModel && voiceHandlers && (
         <div className={styles.voicePanel}>
           <div className={styles.voiceTitle}>Voice</div>

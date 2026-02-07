@@ -20,6 +20,25 @@ const BLOCK_COLORS: [string, string][] = [
   ["#6e6e6e", "#585858"], // Cobblestone (12)
 ];
 
+function fillTile(ctx: CanvasRenderingContext2D, x: number, y: number, top: string, bottom: string): void {
+  const gradient = ctx.createLinearGradient(x, y, x, y + 16);
+  gradient.addColorStop(0, top);
+  gradient.addColorStop(1, bottom);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x, y, 16, 16);
+}
+
+function addTileNoise(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.fillStyle = "rgba(0,0,0,0.1)";
+  for (let px = 0; px < 16; px += 2) {
+    for (let py = 0; py < 16; py += 2) {
+      if ((px + py) % 4 === 0) {
+        ctx.fillRect(x + px, y + py, 1, 1);
+      }
+    }
+  }
+}
+
 /**
  * Creates a 256x256 procedural texture atlas.
  * 16x16 grid, each tile is 16px.
@@ -33,38 +52,23 @@ export function createTextureAtlas(): THREE.CanvasTexture {
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
 
-  // Fill with magenta for debugging unmapped tiles
-  ctx.fillStyle = "#ff00ff";
-  ctx.fillRect(0, 0, size, size);
-
-  for (let i = 0; i < BLOCK_COLORS.length; i++) {
-    const [topColor, bottomColor] = BLOCK_COLORS[i];
-    const x = i * tileSize;
-    const y = 0;
-
-    // Create subtle vertical gradient
-    const gradient = ctx.createLinearGradient(x, y, x, y + tileSize);
-    gradient.addColorStop(0, topColor);
-    gradient.addColorStop(1, bottomColor);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x, y, tileSize, tileSize);
-
-    // Add subtle noise/pixel detail
-    ctx.fillStyle = `rgba(0,0,0,0.05)`;
-    for (let px = 0; px < tileSize; px += 2) {
-      for (let py = 0; py < tileSize; py += 2) {
-        if ((px + py) % 4 === 0) {
-          ctx.fillRect(x + px, y + py, 1, 1);
-        }
-      }
+  // Fill every atlas tile to avoid fallback debug colors when UVs cross tile boundaries.
+  for (let tx = 0; tx < size / tileSize; tx++) {
+    for (let ty = 0; ty < size / tileSize; ty++) {
+      const [topColor, bottomColor] = BLOCK_COLORS[tx % BLOCK_COLORS.length];
+      const x = tx * tileSize;
+      const y = ty * tileSize;
+      fillTile(ctx, x, y, topColor, bottomColor);
+      addTileNoise(ctx, x, y);
     }
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.NearestFilter;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
+  texture.generateMipmaps = false;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }

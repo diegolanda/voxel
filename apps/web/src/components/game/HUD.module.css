@@ -85,6 +85,17 @@
   border-radius: 4px;
 }
 
+.controls {
+  position: absolute;
+  left: 8px;
+  bottom: 88px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+
 .voicePanel {
   position: absolute;
   top: 8px;
@@ -186,6 +197,10 @@
 }
 
 @media (max-width: 600px) {
+  .controls {
+    display: none;
+  }
+
   .hotbarSlot {
     width: 42px;
     height: 42px;

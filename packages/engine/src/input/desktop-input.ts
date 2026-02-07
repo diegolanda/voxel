@@ -1,5 +1,11 @@
 import type { InputState } from "../types";
 
+const MOVEMENT_KEYS = new Set([
+  "KeyW", "KeyA", "KeyS", "KeyD",
+  "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+  "Space", "ShiftLeft", "ShiftRight",
+]);
+
 export class DesktopInput {
   private keys = new Set<string>();
   private mouseDX = 0;
@@ -32,6 +38,9 @@ export class DesktopInput {
     this.onRightClick = callbacks?.onRightClick;
 
     this.handleKeyDown = (e: KeyboardEvent) => {
+      if (MOVEMENT_KEYS.has(e.code)) {
+        e.preventDefault();
+      }
       this.keys.add(e.code);
       // Number keys 1-9 for hotbar
       if (e.code >= "Digit1" && e.code <= "Digit9") {
@@ -41,6 +50,9 @@ export class DesktopInput {
     };
 
     this.handleKeyUp = (e: KeyboardEvent) => {
+      if (MOVEMENT_KEYS.has(e.code)) {
+        e.preventDefault();
+      }
       this.keys.delete(e.code);
     };
 
