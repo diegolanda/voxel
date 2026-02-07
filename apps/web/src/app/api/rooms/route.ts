@@ -1,6 +1,5 @@
 import { MAX_WORLDS_PER_ACCOUNT } from "@voxel/domain";
 import {
-  createInviteToken,
   hashRoomPassword,
   hasReachedWorldCap,
   normalizeRoomCreateInput
@@ -49,23 +48,31 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await hashRoomPassword(input.password);
-  const inviteToken = createInviteToken();
 
-  const { data, error } = await supabase
-    .from("rooms")
-    .insert({
-      host_id: user.id,
-      invite_token: inviteToken,
-      max_players: 5,
-      name: input.name,
-      password_hash: passwordHash,
-      seed: input.seed,
-      theme: input.theme
-    })
-    .select("id")
-    .single();
+  // Use RPC function to create room with host membership atomically
+  // This bypasses RLS issues with the trigger
+  const { data: roomId, error } = await supabase
+    .rpc("create_room_with_host", {
+      p_name: input.name,
+      p_theme: input.theme,
+      p_seed: input.seed,
+      p_password_hash: passwordHash,
+      p_max_players: 5
+    });
 
-  if (error || !data) {
+  if (error || !roomId) {
+    // Log detailed error information for RLS issues
+    console.error("[Room Creation Error]", {
+      userId: user.id,
+      roomName: input.name,
+      error: {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      }
+    });
+
     const message = error?.message?.includes("world_cap_reached")
       ? `You can own at most ${MAX_WORLDS_PER_ACCOUNT} worlds`
       : error?.message ?? "Could not create room";
@@ -75,7 +82,13 @@ export async function POST(request: Request) {
     });
   }
 
-  return redirectTo(request, `/app/rooms/${data.id}`, {
+  console.log("[Room Created Successfully]", {
+    roomId: roomId,
+    hostId: user.id,
+    roomName: input.name
+  });
+
+  return redirectTo(request, `/app/rooms/${roomId}`, {
     notice: "Room created"
   });
 }

@@ -33,9 +33,8 @@ import { createBrowserSupabaseClient } from "../supabase/browser";
 export type RealtimeConnectionStatus = "idle" | "connecting" | "connected" | "error";
 
 export interface RoomTurnConfig {
-  url?: string;
-  username?: string;
-  password?: string;
+  /** Metered (or compatible) REST endpoint that returns an ICE servers array. */
+  apiUrl?: string;
 }
 
 export interface RoomRealtimeSessionOptions {
@@ -111,6 +110,7 @@ export class RoomRealtimeSession {
   private tick = 0;
   private replicationTimer: ReturnType<typeof setInterval> | null = null;
   private interpolationTimer: ReturnType<typeof setInterval> | null = null;
+  private fetchedIceServers: RTCIceServer[] | null = null;
 
   constructor(options: RoomRealtimeSessionOptions) {
     this.options = options;
@@ -127,6 +127,7 @@ export class RoomRealtimeSession {
     this.setStatus("connecting");
 
     try {
+      await this.fetchIceServers();
       await this.setupChannels();
       this.startLoops();
       this.setStatus("connected");
@@ -709,17 +710,31 @@ export class RoomRealtimeSession {
     }
   }
 
-  private getTransportConfig(): SessionTransportConfig {
-    const iceServers: SessionTransportConfig["iceServers"] = [
-      { urls: "stun:stun.l.google.com:19302" }
-    ];
-    if (this.options.turn.url) {
-      iceServers.unshift({
-        urls: this.options.turn.url,
-        username: this.options.turn.username,
-        credential: this.options.turn.password
-      });
+  private async fetchIceServers(): Promise<void> {
+    const apiUrl = this.options.turn.apiUrl;
+    if (!apiUrl) {
+      return;
     }
+
+    try {
+      const res = await fetch(apiUrl);
+      if (!res.ok) {
+        console.warn("[webrtc] Failed to fetch ICE servers:", res.status);
+        return;
+      }
+      const servers: RTCIceServer[] = await res.json();
+      if (Array.isArray(servers) && servers.length > 0) {
+        this.fetchedIceServers = servers;
+      }
+    } catch (err) {
+      console.warn("[webrtc] Error fetching ICE servers:", err);
+    }
+  }
+
+  private getTransportConfig(): SessionTransportConfig {
+    const iceServers: SessionTransportConfig["iceServers"] = this.fetchedIceServers
+      ? [...this.fetchedIceServers]
+      : [{ urls: "stun:stun.l.google.com:19302" }];
 
     return {
       iceServers,
