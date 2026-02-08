@@ -15,10 +15,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Env
+# Env — ignore all .env variants except the committed template
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Editor
 .DS_Store
