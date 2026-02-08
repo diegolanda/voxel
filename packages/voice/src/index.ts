@@ -287,10 +287,12 @@ export function updateSpatialVoicePose(
     smoothing.positionAlpha
   );
 
-  const distance = Math.hypot(dx, dy, dz);
-  const normalized = 1 - distance / Math.max(1, settings.proximityRadius);
-  const attenuated = clamp(normalized, 0, 1) * clampVoiceVolume(settings.volume);
-  const finalGain = settings.muted ? 0 : attenuated;
+  // Keep panner maxDistance in sync with user's proximity radius setting.
+  graph.panner.maxDistance = Math.max(1, settings.proximityRadius);
+
+  // PannerNode handles distance attenuation via its distanceModel.
+  // Gain node only controls user volume; mute is handled on the local mic track.
+  const finalGain = clampVoiceVolume(settings.volume);
   setAudioParam(graph.gain.gain, finalGain, time, smoothing.gainAlpha);
 }
 

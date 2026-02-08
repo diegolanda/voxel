@@ -18,6 +18,7 @@ interface HUDProps {
   voice?: {
     permission: VoiceHudViewModel["permission"];
     settings: VoiceSettings;
+    micActive: boolean;
     onEnable: () => void;
     onDisable: () => void;
     onSettingsChange: (next: Partial<VoiceSettings>) => void;
@@ -95,9 +96,14 @@ export function HUD({ network, voice, save, errorMessage }: HUDProps) {
         <div>Place: Right Click</div>
         <div>Hotbar: 1-9</div>
       </div>
-      {voiceViewModel && voiceHandlers && (
+      {voiceViewModel && voiceHandlers && voice && (
         <div className={styles.voicePanel}>
           <div className={styles.voiceTitle}>Voice</div>
+          {voice.micActive && (
+            <div className={voice.settings.muted ? styles.micStatusMuted : styles.micStatusLive}>
+              {voice.settings.muted ? "MIC MUTED" : "MIC LIVE"}
+            </div>
+          )}
           <div className={styles.voiceRow}>Permission: {voiceViewModel.permission}</div>
           <div className={styles.voiceButtons}>
             <button

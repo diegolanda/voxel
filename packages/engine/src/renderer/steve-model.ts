@@ -285,14 +285,14 @@ export class SteveModel {
     {
       const geometry = new THREE.BoxGeometry(HEAD_SIZE, HEAD_SIZE, HEAD_SIZE);
       const faceMaterial = new THREE.MeshLambertMaterial({ map: createFaceTexture() });
-      // +x (left side), -x (right side), +y (top), -y (bottom), +z (front/face), -z (back)
+      // +x (right), -x (left), +y (top), -y (bottom), +z (back), -z (front/face)
       const materials = [
         makePartMaterial(SKIN_SHADOW),
         makePartMaterial(SKIN_SHADOW),
         makePartMaterial(HAIR),
         makePartMaterial(SKIN_SHADOW),
-        faceMaterial,
         makePartMaterial(HAIR),
+        faceMaterial,
       ];
       this.head = new THREE.Mesh(geometry, materials);
     }

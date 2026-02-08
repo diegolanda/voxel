@@ -730,7 +730,7 @@ export class RoomRealtimeSession {
         position: [sample.position.x, sample.position.y, sample.position.z],
         rotation: [sample.rotation.yaw, sample.rotation.pitch],
         velocity: [sample.velocity.x, sample.velocity.y, sample.velocity.z],
-        isTalking: false
+        isTalking: this.remoteVoiceByPeer.has(peerId)
       });
     }
 

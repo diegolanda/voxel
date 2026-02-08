@@ -115,6 +115,34 @@
   font-weight: bold;
 }
 
+.micStatusLive {
+  font-size: 11px;
+  font-weight: bold;
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: 4px;
+  padding: 3px 8px;
+  text-align: center;
+  animation: micPulse 1.5s ease-in-out infinite;
+}
+
+.micStatusMuted {
+  font-size: 11px;
+  font-weight: bold;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  padding: 3px 8px;
+  text-align: center;
+}
+
+@keyframes micPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .voiceButtons {
   display: flex;
   flex-wrap: wrap;

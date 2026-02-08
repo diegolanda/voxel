@@ -58,6 +58,7 @@ export function GameSession({
   const [voiceSettings, setVoiceSettings] =
     useState<VoiceSettings>(DEFAULT_VOICE_SETTINGS);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [micActive, setMicActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
@@ -148,11 +149,14 @@ export function GameSession({
   }, []);
 
   const handleEnableVoice = useCallback(() => {
-    void sessionRef.current?.enableVoice();
+    void sessionRef.current?.enableVoice().then(() => {
+      setMicActive(true);
+    });
   }, []);
 
   const handleDisableVoice = useCallback(() => {
     sessionRef.current?.disableVoice();
+    setMicActive(false);
   }, []);
 
   const handleVoiceSettingsChange = useCallback((next: Partial<VoiceSettings>) => {
@@ -237,6 +241,7 @@ export function GameSession({
         voice={{
           permission: voicePermission,
           settings: voiceSettings,
+          micActive,
           onEnable: handleEnableVoice,
           onDisable: handleDisableVoice,
           onSettingsChange: handleVoiceSettingsChange
