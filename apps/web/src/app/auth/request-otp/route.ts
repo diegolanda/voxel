@@ -12,12 +12,16 @@ export async function POST(request: Request) {
     });
   }
 
+  // Derive the origin from the incoming request so the magic-link callback
+  // always matches the current deployment URL (Vercel preview, production, local).
+  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+
   const supabase = await createServerSupabaseClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: true,
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`
+      emailRedirectTo: `${origin}/auth/callback`
     }
   });
 
