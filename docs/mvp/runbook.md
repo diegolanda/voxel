@@ -9,8 +9,12 @@
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service-role key (server only) |
 | `NEXT_PUBLIC_APP_URL` | Yes | Public app URL (e.g. `https://voxel.example.com`) |
 | `NEXT_PUBLIC_TURN_URL` | Yes | TURN server URL for WebRTC |
+| `NEXT_PUBLIC_TURN_API_URL` | Yes | API path that returns ICE servers (default `/api/turn/credentials`) |
 | `NEXT_PUBLIC_TURN_USERNAME` | Yes | TURN server username |
 | `NEXT_PUBLIC_TURN_PASSWORD` | Yes | TURN server password |
+| `TURN_URL` | Yes | Server-side TURN relay URL (e.g. `turns:global.relay.metered.ca:443`) |
+| `TURN_USERNAME` | Yes | Server-side TURN credential username |
+| `TURN_PASSWORD` | Yes | Server-side TURN credential password |
 | `NEXT_PUBLIC_SENTRY_DSN` | No | Sentry/error beacon endpoint |
 
 ## Database Migrations
@@ -45,8 +49,12 @@ docker run -p 3000:3000 \
   -e SUPABASE_SERVICE_ROLE_KEY=... \
   -e NEXT_PUBLIC_APP_URL=... \
   -e NEXT_PUBLIC_TURN_URL=... \
+  -e NEXT_PUBLIC_TURN_API_URL=/api/turn/credentials \
   -e NEXT_PUBLIC_TURN_USERNAME=... \
   -e NEXT_PUBLIC_TURN_PASSWORD=... \
+  -e TURN_URL=... \
+  -e TURN_USERNAME=... \
+  -e TURN_PASSWORD=... \
   voxel-web
 ```
 
@@ -56,7 +64,7 @@ docker run -p 3000:3000 \
 - [ ] All environment variables are set in production
 - [ ] Database migrations are applied (`supabase db push`)
 - [ ] TURN server is reachable and credentials are valid
-- [ ] Supabase storage bucket `world-saves` exists with RLS enabled
+- [ ] Supabase storage bucket `world-snapshots` exists with RLS enabled
 - [ ] RLS policies on all tables are active
 
 ## Post-Deploy Verification
