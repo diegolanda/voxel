@@ -24,6 +24,7 @@ import {
   getMicrophonePermissionState,
   createSpatialVoiceGraph,
   updateSpatialVoicePose,
+  readVoiceAudioLevel,
   clampVoiceVolume,
   type VoiceSettings,
   type MicrophonePermissionState,
@@ -900,10 +901,14 @@ export class RoomRealtimeSession {
     this.updateSpatialAudio();
   }
 
+  private audioDebugTick = 0;
+
   private updateSpatialAudio(): void {
     if (!this.audioContext) {
       return;
     }
+
+    this.audioDebugTick += 1;
 
     const localPose = this.poseFromPlayerState(this.localState);
     const now = this.audioContext.currentTime;
@@ -932,7 +937,25 @@ export class RoomRealtimeSession {
     setAudioParam(this.audioContext.listener.upY, 1, now, 0.2);
     setAudioParam(this.audioContext.listener.upZ, 0, now, 0.2);
 
+    // Log audio levels every ~1s (every 20 ticks at 50ms interval)
+    const shouldLogLevels = this.audioDebugTick % 20 === 0;
+
     for (const [peerId, remote] of this.remoteVoiceByPeer.entries()) {
+      if (shouldLogLevels) {
+        const level = readVoiceAudioLevel(remote.graph);
+        const tracks = remote.stream.getAudioTracks();
+        this.logVoice("voice:audio-level", {
+          peerId,
+          peak: Math.round(level.peak * 1000) / 1000,
+          rms: Math.round(level.rms * 1000) / 1000,
+          gainValue: Math.round(remote.graph.gain.gain.value * 1000) / 1000,
+          trackCount: tracks.length,
+          trackStates: tracks.map((t) => ({ readyState: t.readyState, enabled: t.enabled, muted: t.muted })),
+          hasRemotePose: this.remotePoseByPeer.has(peerId),
+          audioContextState: this.audioContext!.state
+        });
+      }
+
       const remoteState = this.remotePoseByPeer.get(peerId);
       if (!remoteState) {
         // No position data yet — still apply the user's volume so the gain
@@ -971,6 +994,7 @@ export class RoomRealtimeSession {
         return;
       }
       existing.graph.source.disconnect();
+      existing.graph.analyser.disconnect();
       existing.graph.panner.disconnect();
       existing.graph.gain.disconnect();
       this.remoteVoiceByPeer.delete(peerId);
@@ -996,6 +1020,7 @@ export class RoomRealtimeSession {
   private disposeVoiceGraphs(): void {
     for (const remote of this.remoteVoiceByPeer.values()) {
       remote.graph.source.disconnect();
+      remote.graph.analyser.disconnect();
       remote.graph.panner.disconnect();
       remote.graph.gain.disconnect();
     }
@@ -1022,6 +1047,7 @@ export class RoomRealtimeSession {
     const remoteVoice = this.remoteVoiceByPeer.get(peerId);
     if (remoteVoice) {
       remoteVoice.graph.source.disconnect();
+      remoteVoice.graph.analyser.disconnect();
       remoteVoice.graph.panner.disconnect();
       remoteVoice.graph.gain.disconnect();
       this.remoteVoiceByPeer.delete(peerId);

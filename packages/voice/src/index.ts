@@ -56,6 +56,7 @@ export interface SpatialVoiceGraph {
   source: MediaStreamAudioSourceNode;
   panner: PannerNode;
   gain: GainNode;
+  analyser: AnalyserNode;
 }
 
 export type VoiceSettingsAction =
@@ -248,11 +249,39 @@ export function createSpatialVoiceGraph(
   const gain = context.createGain();
   gain.gain.value = clampVoiceVolume(resolvedOptions.gain);
 
-  source.connect(panner);
+  // Analyser taps the raw source output (before panner/gain) so we can
+  // verify whether the WebRTC stream is actually delivering audio samples.
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 256;
+
+  source.connect(analyser);
+  analyser.connect(panner);
   panner.connect(gain);
   gain.connect(destination);
 
-  return { source, panner, gain };
+  return { source, panner, gain, analyser };
+}
+
+/**
+ * Read the current audio level from a voice graph's analyser node.
+ * Returns `{ peak, rms }` in the range [0, 1].  Both will be 0 when the
+ * remote stream has no audio flowing.
+ */
+export function readVoiceAudioLevel(graph: SpatialVoiceGraph): { peak: number; rms: number } {
+  const buf = new Uint8Array(graph.analyser.frequencyBinCount);
+  graph.analyser.getByteTimeDomainData(buf);
+
+  let peak = 0;
+  let sumSq = 0;
+  for (let i = 0; i < buf.length; i++) {
+    // Byte domain data is unsigned 0-255 with 128 = silence.
+    const sample = (buf[i] - 128) / 128;
+    const abs = Math.abs(sample);
+    if (abs > peak) peak = abs;
+    sumSq += sample * sample;
+  }
+
+  return { peak, rms: Math.sqrt(sumSq / buf.length) };
 }
 
 export function updateSpatialVoicePose(
