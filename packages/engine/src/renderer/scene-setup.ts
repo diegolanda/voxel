@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { BiomeConfig } from "@voxel/worldgen";
 import { createTextureAtlas } from "./texture-atlas";
+import { SkyDome } from "./sky-dome";
 
 export interface SceneContext {
   scene: THREE.Scene;
@@ -8,6 +9,7 @@ export interface SceneContext {
   renderer: THREE.WebGLRenderer;
   blockMaterial: THREE.MeshLambertMaterial;
   chunkGroup: THREE.Group;
+  updateSky: (cameraPosition: THREE.Vector3) => void;
   dispose: () => void;
 }
 
@@ -17,12 +19,16 @@ export function setupScene(
   pixelRatioCap: number,
 ): SceneContext {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(themeConfig.skyColor);
+  scene.background = new THREE.Color(themeConfig.sky.horizonColor);
   scene.fog = new THREE.Fog(
     themeConfig.fogColor,
     themeConfig.fogNear,
     themeConfig.fogFar,
   );
+
+  // Sky dome
+  const skyDome = new SkyDome(themeConfig.sky);
+  scene.add(skyDome.mesh);
 
   const aspect = canvas.clientWidth / canvas.clientHeight || 1;
   const camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 500);
@@ -40,8 +46,9 @@ export function setupScene(
   const ambient = new THREE.AmbientLight(0xffffff, themeConfig.ambientIntensity);
   scene.add(ambient);
 
+  const sunDir = skyDome.getSunDirection();
   const directional = new THREE.DirectionalLight(0xffffff, themeConfig.sunIntensity);
-  directional.position.set(50, 100, 30);
+  directional.position.set(sunDir.x * 100, sunDir.y * 100, sunDir.z * 100);
   scene.add(directional);
 
   // Block material with atlas texture
@@ -64,12 +71,17 @@ export function setupScene(
   });
   resizeObserver.observe(canvas);
 
+  const updateSky = (cameraPosition: THREE.Vector3) => {
+    skyDome.update(cameraPosition);
+  };
+
   const dispose = () => {
     resizeObserver.disconnect();
+    skyDome.dispose();
     atlas.dispose();
     blockMaterial.dispose();
     renderer.dispose();
   };
 
-  return { scene, camera, renderer, blockMaterial, chunkGroup, dispose };
+  return { scene, camera, renderer, blockMaterial, chunkGroup, updateSky, dispose };
 }

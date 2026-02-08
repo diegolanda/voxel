@@ -191,6 +191,9 @@ export function createEngineRuntime(
           camera.rotation.y = yaw;
           camera.rotation.x = pitch;
 
+          // Keep sky dome centered on camera
+          sceneCtx!.updateSky(camera.position);
+
           // Load/unload chunks
           chunkManager!.updateChunksAroundPlayer(
             px, pz,

@@ -1,6 +1,16 @@
 import type { MvpTheme } from "@voxel/domain";
 import { BlockType } from "@voxel/domain";
 
+export interface SkyConfig {
+  zenithColor: string;
+  horizonColor: string;
+  sunColor: string;
+  sunAngularRadius: number;
+  sunElevation: number;
+  sunAzimuth: number;
+  sunGlowIntensity: number;
+}
+
 export interface BiomeConfig {
   baseHeight: number;
   heightVariation: number;
@@ -20,6 +30,7 @@ export interface BiomeConfig {
   fogFar: number;
   sunIntensity: number;
   ambientIntensity: number;
+  sky: SkyConfig;
 }
 
 export const THEME_CONFIGS: Record<MvpTheme, BiomeConfig> = {
@@ -42,6 +53,15 @@ export const THEME_CONFIGS: Record<MvpTheme, BiomeConfig> = {
     fogFar: 220,
     sunIntensity: 1.0,
     ambientIntensity: 0.6,
+    sky: {
+      zenithColor: "#4a90d9",
+      horizonColor: "#c8e6c9",
+      sunColor: "#fff5d0",
+      sunAngularRadius: 0.05,
+      sunElevation: 1.1,
+      sunAzimuth: 0.5,
+      sunGlowIntensity: 0.3,
+    },
   },
   snow: {
     baseHeight: 22,
@@ -62,6 +82,15 @@ export const THEME_CONFIGS: Record<MvpTheme, BiomeConfig> = {
     fogFar: 180,
     sunIntensity: 0.8,
     ambientIntensity: 0.7,
+    sky: {
+      zenithColor: "#b0c4d8",
+      horizonColor: "#e8eef2",
+      sunColor: "#e8e0d0",
+      sunAngularRadius: 0.07,
+      sunElevation: 0.6,
+      sunAzimuth: 0.3,
+      sunGlowIntensity: 0.5,
+    },
   },
   coast: {
     baseHeight: 16,
@@ -82,5 +111,14 @@ export const THEME_CONFIGS: Record<MvpTheme, BiomeConfig> = {
     fogFar: 250,
     sunIntensity: 1.2,
     ambientIntensity: 0.65,
+    sky: {
+      zenithColor: "#2a7cc7",
+      horizonColor: "#b3d9e8",
+      sunColor: "#fffde0",
+      sunAngularRadius: 0.05,
+      sunElevation: 1.3,
+      sunAzimuth: 0.8,
+      sunGlowIntensity: 0.2,
+    },
   },
 };
