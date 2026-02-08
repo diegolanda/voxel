@@ -12,6 +12,14 @@ import { BlockInteraction } from "./interaction/block-interaction";
 import { GameLoop } from "./game-loop";
 import type { PlayerState } from "./types";
 
+export interface BlockEditInfo {
+  operation: "place" | "break";
+  x: number;
+  y: number;
+  z: number;
+  blockType: number;
+}
+
 export interface EngineRuntimeContract {
   mount(canvas: HTMLCanvasElement): void;
   dispose(): void;
@@ -28,6 +36,8 @@ export interface EngineRuntimeContract {
   getModifiedChunkDiffs(): ChunkDiff[];
   /** Apply saved chunk diffs on top of generated terrain (resume). */
   applyChunkDiffs(diffs: ChunkDiff[]): void;
+  /** Apply a single block edit from a remote peer. */
+  applyBlockEdit(x: number, y: number, z: number, blockType: number): void;
   /** Update remote player avatars (Steve models) from network state. */
   updateRemotePlayers(states: Map<string, RemotePlayerState>): void;
 }
@@ -37,6 +47,7 @@ export interface EngineCallbacks {
   onSlotChange?: (slot: number) => void;
   onHitBlockChange?: (blockName: string | null) => void;
   onPlayerStateChange?: (state: PlayerState) => void;
+  onBlockEdit?: (edit: BlockEditInfo) => void;
 }
 
 const BLOCK_NAMES: Record<number, string> = {
@@ -97,13 +108,34 @@ export function createEngineRuntime(
   const handleBreak = (): boolean => {
     if (!blockInteraction) return false;
     blockInteraction.update();
-    return blockInteraction.breakBlock();
+    const hit = blockInteraction.currentHit;
+    if (!hit) return false;
+    if (!blockInteraction.breakBlock()) return false;
+    callbacks?.onBlockEdit?.({
+      operation: "break",
+      x: hit.hit.x,
+      y: hit.hit.y,
+      z: hit.hit.z,
+      blockType: BlockType.Air,
+    });
+    return true;
   };
 
   const handlePlace = (): boolean => {
     if (!blockInteraction) return false;
     blockInteraction.update();
-    return blockInteraction.placeBlock(HOTBAR_BLOCKS[selectedSlot]);
+    const hit = blockInteraction.currentHit;
+    if (!hit) return false;
+    const bt = HOTBAR_BLOCKS[selectedSlot];
+    if (!blockInteraction.placeBlock(bt)) return false;
+    callbacks?.onBlockEdit?.({
+      operation: "place",
+      x: hit.face.x,
+      y: hit.face.y,
+      z: hit.face.z,
+      blockType: bt,
+    });
+    return true;
   };
 
   return {
@@ -281,6 +313,10 @@ export function createEngineRuntime(
       if (pending.length > 0) {
         pendingDiffs.push(...pending);
       }
+    },
+
+    applyBlockEdit(x: number, y: number, z: number, blockType: number): void {
+      chunkManager?.setBlock(x, y, z, blockType as BlockType);
     },
 
     updateRemotePlayers(states: Map<string, RemotePlayerState>): void {

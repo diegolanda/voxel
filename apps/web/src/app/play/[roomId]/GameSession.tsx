@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MvpTheme } from "@voxel/domain";
 import { detectDeviceProfile, recommendQualityPreset } from "@voxel/domain";
-import type { PlayerState } from "@voxel/engine";
+import type { PlayerState, BlockEditInfo } from "@voxel/engine";
 import {
   serializeSnapshot,
   SNAPSHOT_FORMAT_VERSION,
@@ -119,6 +119,12 @@ export function GameSession({
       onConnectionStatusChange: setConnectionStatus,
       onPeerCountChange: setPeerCount,
       onVoicePermissionChange: setVoicePermission,
+      onRemotePlayersChange: (states) => {
+        canvasRef.current?.getRuntime()?.updateRemotePlayers(states);
+      },
+      onRemoteBlockEdit: (edit) => {
+        canvasRef.current?.getRuntime()?.applyBlockEdit(edit.x, edit.y, edit.z, edit.blockType);
+      },
       onError: (msg) => {
         reportError(new Error(msg), { phase: "realtime", roomId });
         setLastError(msg);
@@ -135,6 +141,10 @@ export function GameSession({
 
   const handlePlayerStateChange = useCallback((state: PlayerState) => {
     sessionRef.current?.updateLocalPlayerState(state);
+  }, []);
+
+  const handleBlockEdit = useCallback((edit: BlockEditInfo) => {
+    sessionRef.current?.broadcastBlockEdit(edit);
   }, []);
 
   const handleEnableVoice = useCallback(() => {
@@ -216,6 +226,7 @@ export function GameSession({
         seed={seed}
         quality={quality}
         onPlayerStateChange={handlePlayerStateChange}
+        onBlockEdit={handleBlockEdit}
       />
       <HUD
         network={{

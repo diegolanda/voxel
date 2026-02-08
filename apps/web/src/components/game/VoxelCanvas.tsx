@@ -3,7 +3,7 @@
 import { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { createEngineRuntime } from "@voxel/engine";
 import type { MvpTheme, QualityPreset } from "@voxel/domain";
-import type { EngineRuntimeContract, PlayerState } from "@voxel/engine";
+import type { EngineRuntimeContract, PlayerState, BlockEditInfo } from "@voxel/engine";
 import { useGameStore } from "../../store/game-store";
 
 interface VoxelCanvasProps {
@@ -11,6 +11,7 @@ interface VoxelCanvasProps {
   seed: string;
   quality: QualityPreset;
   onPlayerStateChange?: (state: PlayerState) => void;
+  onBlockEdit?: (edit: BlockEditInfo) => void;
 }
 
 export interface VoxelCanvasHandle {
@@ -22,7 +23,7 @@ export interface VoxelCanvasHandle {
 }
 
 export const VoxelCanvas = forwardRef<VoxelCanvasHandle, VoxelCanvasProps>(
-  function VoxelCanvas({ theme, seed, quality, onPlayerStateChange }, ref) {
+  function VoxelCanvas({ theme, seed, quality, onPlayerStateChange, onBlockEdit }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const runtimeRef = useRef<EngineRuntimeContract | null>(null);
     const setFps = useGameStore((s) => s.setFps);
@@ -47,7 +48,8 @@ export const VoxelCanvas = forwardRef<VoxelCanvasHandle, VoxelCanvasProps>(
           onFps: setFps,
           onSlotChange: setSelectedSlot,
           onHitBlockChange: setHitBlockName,
-          onPlayerStateChange
+          onPlayerStateChange,
+          onBlockEdit
         },
       );
 
@@ -63,6 +65,7 @@ export const VoxelCanvas = forwardRef<VoxelCanvasHandle, VoxelCanvasProps>(
       seed,
       quality,
       onPlayerStateChange,
+      onBlockEdit,
       setFps,
       setSelectedSlot,
       setHitBlockName

@@ -1,7 +1,7 @@
 "use client";
 
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import type { PlayerState } from "@voxel/engine";
+import type { PlayerState, RemotePlayerState, BlockEditInfo } from "@voxel/engine";
 import {
   createRealtimeChannelNames,
   createSessionPlan,
@@ -47,6 +47,8 @@ export interface RoomRealtimeSessionOptions {
   onConnectionStatusChange?: (status: RealtimeConnectionStatus) => void;
   onPeerCountChange?: (count: number) => void;
   onVoicePermissionChange?: (permission: MicrophonePermissionState) => void;
+  onRemotePlayersChange?: (states: Map<string, RemotePlayerState>) => void;
+  onRemoteBlockEdit?: (edit: BlockEditInfo) => void;
   onError?: (message: string) => void;
 }
 
@@ -108,6 +110,9 @@ export class RoomRealtimeSession {
   private voiceSettings: VoiceSettings = DEFAULT_VOICE_SETTINGS;
   private running = false;
   private tick = 0;
+  private blockSequence = 0;
+  private readonly blockEditLog: BlockEditInfo[] = [];
+  private readonly knownPeerIds = new Set<string>();
   private replicationTimer: ReturnType<typeof setInterval> | null = null;
   private interpolationTimer: ReturnType<typeof setInterval> | null = null;
   private fetchedIceServers: RTCIceServer[] | null = null;
@@ -257,6 +262,31 @@ export class RoomRealtimeSession {
     this.localStream = null;
   }
 
+  broadcastBlockEdit(edit: BlockEditInfo): void {
+    if (!this.eventsChannel) {
+      return;
+    }
+
+    this.blockSequence += 1;
+    this.blockEditLog.push(edit);
+
+    this.eventsChannel.send({
+      type: "broadcast",
+      event: "block-edit",
+      payload: {
+        type: "block-edit",
+        version: PROTOCOL_VERSION,
+        roomId: this.options.roomId,
+        sentAtMs: Date.now(),
+        actorPeerId: this.localPeerId,
+        sequence: this.blockSequence,
+        operation: edit.operation,
+        position: { x: edit.x, y: edit.y, z: edit.z },
+        blockType: edit.operation === "place" ? edit.blockType : null
+      }
+    });
+  }
+
   private async setupChannels(): Promise<void> {
     this.presenceChannel = this.supabase.channel(this.channels.presence, {
       config: {
@@ -280,6 +310,34 @@ export class RoomRealtimeSession {
           error instanceof Error ? error.message : "Failed to process signaling message"
         );
       });
+    });
+
+    this.eventsChannel.on("broadcast", { event: "block-edit" }, (payload) => {
+      const data = payload?.payload;
+      if (!data || data.actorPeerId === this.localPeerId) {
+        return;
+      }
+
+      const edit: BlockEditInfo = {
+        operation: data.operation as "place" | "break",
+        x: data.position.x as number,
+        y: data.position.y as number,
+        z: data.position.z as number,
+        blockType: data.operation === "place" ? (data.blockType as number) : 0
+      };
+      this.blockEditLog.push(edit);
+      this.options.onRemoteBlockEdit?.(edit);
+    });
+
+    this.eventsChannel.on("broadcast", { event: "world-sync" }, (payload) => {
+      const data = payload?.payload;
+      if (!data?.edits || !Array.isArray(data.edits)) {
+        return;
+      }
+
+      for (const edit of data.edits as BlockEditInfo[]) {
+        this.options.onRemoteBlockEdit?.(edit);
+      }
     });
 
     await Promise.all([
@@ -342,11 +400,29 @@ export class RoomRealtimeSession {
       }
     }
 
+    // Detect new peers and send world-sync so late joiners get current state.
+    // Every peer sends this (setBlock is idempotent, so duplicates are harmless).
+    for (const peer of plan.peers) {
+      if (!this.knownPeerIds.has(peer.peerId)) {
+        this.knownPeerIds.add(peer.peerId);
+        if (this.blockEditLog.length > 0) {
+          this.sendWorldSync();
+        }
+      }
+    }
+
     const presentPeers = new Set(plan.peers.map((peer) => peer.peerId));
     for (const peerId of this.peers.keys()) {
       if (!presentPeers.has(peerId)) {
         this.disconnectPeer(peerId);
         this.peers.delete(peerId);
+      }
+    }
+
+    // Clean up known peer tracking
+    for (const peerId of this.knownPeerIds) {
+      if (!presentPeers.has(peerId)) {
+        this.knownPeerIds.delete(peerId);
       }
     }
 
@@ -622,6 +698,8 @@ export class RoomRealtimeSession {
 
   private tickInterpolation(): void {
     const samples = this.interpolationBuffer.sampleAll(Date.now());
+    const remoteStates = new Map<string, RemotePlayerState>();
+
     for (const [peerId, sample] of samples.entries()) {
       this.remotePoseByPeer.set(peerId, {
         ...sample,
@@ -630,8 +708,16 @@ export class RoomRealtimeSession {
         version: PROTOCOL_VERSION,
         sentAtMs: sample.sampledAtMs
       });
+
+      remoteStates.set(peerId, {
+        position: [sample.position.x, sample.position.y, sample.position.z],
+        rotation: [sample.rotation.yaw, sample.rotation.pitch],
+        velocity: [sample.velocity.x, sample.velocity.y, sample.velocity.z],
+        isTalking: false
+      });
     }
 
+    this.options.onRemotePlayersChange?.(remoteStates);
     this.updateSpatialAudio();
   }
 
@@ -776,6 +862,24 @@ export class RoomRealtimeSession {
         z: -Math.cos(yaw) * Math.cos(pitch)
       }
     };
+  }
+
+  private sendWorldSync(): void {
+    if (!this.eventsChannel || this.blockEditLog.length === 0) {
+      return;
+    }
+
+    this.eventsChannel.send({
+      type: "broadcast",
+      event: "world-sync",
+      payload: {
+        type: "world-sync",
+        version: PROTOCOL_VERSION,
+        roomId: this.options.roomId,
+        sentAtMs: Date.now(),
+        edits: this.blockEditLog
+      }
+    });
   }
 
   private setStatus(status: RealtimeConnectionStatus): void {
