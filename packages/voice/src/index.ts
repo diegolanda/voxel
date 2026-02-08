@@ -53,7 +53,9 @@ export interface SpatialVoiceOptions {
 }
 
 export interface SpatialVoiceGraph {
-  source: MediaStreamAudioSourceNode;
+  source: MediaElementAudioSourceNode;
+  /** Hidden audio element that forces the browser to decode the WebRTC stream. */
+  audioElement: HTMLAudioElement;
   panner: PannerNode;
   gain: GainNode;
   analyser: AnalyserNode;
@@ -232,7 +234,22 @@ export function createSpatialVoiceGraph(
     ...options
   };
 
-  const source = context.createMediaStreamSource(stream);
+  // Route the remote WebRTC stream through a hidden <audio> element.
+  // Chrome's createMediaStreamSource() is known to produce silence for
+  // remote WebRTC streams; createMediaElementSource() is reliable because
+  // the element forces the browser to fully decode the incoming stream.
+  const audioElement = document.createElement("audio");
+  audioElement.srcObject = stream;
+  audioElement.autoplay = true;
+  audioElement.setAttribute("playsinline", "");
+  // Muted attribute is NOT set — the element needs to "play" the stream
+  // so Chrome decodes it.  createMediaElementSource() takes over the
+  // element's output, so it won't double-play through speakers.
+  audioElement.play().catch(() => {
+    /* will retry on user gesture via AudioContext resume */
+  });
+
+  const source = context.createMediaElementSource(audioElement);
   const panner = context.createPanner();
   panner.panningModel = resolvedOptions.panningModel;
   panner.distanceModel = resolvedOptions.distanceModel;
@@ -259,7 +276,7 @@ export function createSpatialVoiceGraph(
   panner.connect(gain);
   gain.connect(destination);
 
-  return { source, panner, gain, analyser };
+  return { source, audioElement, panner, gain, analyser };
 }
 
 /**

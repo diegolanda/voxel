@@ -993,10 +993,7 @@ export class RoomRealtimeSession {
       if (existing.stream === stream) {
         return;
       }
-      existing.graph.source.disconnect();
-      existing.graph.analyser.disconnect();
-      existing.graph.panner.disconnect();
-      existing.graph.gain.disconnect();
+      RoomRealtimeSession.teardownVoiceGraph(existing.graph);
       this.remoteVoiceByPeer.delete(peerId);
       this.logVoice("voice:graph-replaced", { peerId, oldStreamId: existing.stream.id, newStreamId: stream.id });
     }
@@ -1017,12 +1014,18 @@ export class RoomRealtimeSession {
     });
   }
 
+  private static teardownVoiceGraph(graph: SpatialVoiceGraph): void {
+    graph.source.disconnect();
+    graph.analyser.disconnect();
+    graph.panner.disconnect();
+    graph.gain.disconnect();
+    graph.audioElement.pause();
+    graph.audioElement.srcObject = null;
+  }
+
   private disposeVoiceGraphs(): void {
     for (const remote of this.remoteVoiceByPeer.values()) {
-      remote.graph.source.disconnect();
-      remote.graph.analyser.disconnect();
-      remote.graph.panner.disconnect();
-      remote.graph.gain.disconnect();
+      RoomRealtimeSession.teardownVoiceGraph(remote.graph);
     }
     this.remoteVoiceByPeer.clear();
   }
@@ -1046,10 +1049,7 @@ export class RoomRealtimeSession {
 
     const remoteVoice = this.remoteVoiceByPeer.get(peerId);
     if (remoteVoice) {
-      remoteVoice.graph.source.disconnect();
-      remoteVoice.graph.analyser.disconnect();
-      remoteVoice.graph.panner.disconnect();
-      remoteVoice.graph.gain.disconnect();
+      RoomRealtimeSession.teardownVoiceGraph(remoteVoice.graph);
       this.remoteVoiceByPeer.delete(peerId);
     }
     this.logVoice("peer:disconnected", { peerId });
