@@ -113,6 +113,7 @@ export class RoomRealtimeSession {
   private blockSequence = 0;
   private readonly blockEditLog: BlockEditInfo[] = [];
   private readonly knownPeerIds = new Set<string>();
+  private readonly debugVoice = shouldEnableVoiceDebug();
   private replicationTimer: ReturnType<typeof setInterval> | null = null;
   private interpolationTimer: ReturnType<typeof setInterval> | null = null;
   private fetchedIceServers: RTCIceServer[] | null = null;
@@ -133,6 +134,10 @@ export class RoomRealtimeSession {
     this.setStatus("connecting");
 
     try {
+      this.logVoice("session:start", {
+        roomId: this.options.roomId,
+        turnApiUrl: this.options.turn.apiUrl ?? "/api/turn/credentials"
+      });
       await this.fetchIceServers();
       await this.setupChannels();
       await this.ensureAudioContext();
@@ -153,6 +158,7 @@ export class RoomRealtimeSession {
     }
 
     this.running = false;
+    this.logVoice("session:stop");
 
     if (this.replicationTimer) {
       clearInterval(this.replicationTimer);
@@ -218,6 +224,7 @@ export class RoomRealtimeSession {
     }
 
     this.updateSpatialAudio();
+    this.logVoice("voice:settings-updated", this.voiceSettings);
   }
 
   async enableVoice(): Promise<boolean> {
@@ -231,16 +238,32 @@ export class RoomRealtimeSession {
 
     const permission = await getMicrophonePermissionState(navigator);
     this.setVoicePermission(permission);
+    this.logVoice("voice:permission-before-request", { permission });
     await this.ensureAudioContext();
 
     const result = await requestMicrophoneStream(navigator);
     this.setVoicePermission(result.permission);
     if (!result.ok) {
+      this.logVoice("voice:enable-failed", {
+        permission: result.permission,
+        code: result.code,
+        reason: result.reason
+      });
       this.options.onError?.(result.reason);
       return false;
     }
 
     this.localStream = result.stream;
+    this.logVoice("voice:stream-ready", {
+      permission: result.permission,
+      audioTracks: this.localStream.getAudioTracks().map((t) => ({
+        id: t.id,
+        label: t.label,
+        enabled: t.enabled,
+        muted: t.muted,
+        readyState: t.readyState
+      }))
+    });
     for (const track of this.localStream.getAudioTracks()) {
       track.enabled = !this.voiceSettings.muted;
     }
@@ -256,6 +279,7 @@ export class RoomRealtimeSession {
 
     this.hydrateRemoteVoiceGraphs();
     await this.updateVoicePresence(true);
+    this.logVoice("voice:enabled", { peers: Array.from(this.peers.keys()) });
     return true;
   }
 
@@ -267,6 +291,7 @@ export class RoomRealtimeSession {
     for (const track of this.localStream.getTracks()) {
       track.stop();
     }
+    this.logVoice("voice:disabled");
     this.localStream = null;
     void this.updateVoicePresence(false);
   }
@@ -378,6 +403,7 @@ export class RoomRealtimeSession {
       voiceEnabled: enabled,
       joinedAtMs: Date.now()
     } satisfies ChannelPresenceState);
+    this.logVoice("voice:presence-updated", { enabled });
   }
 
   private async handlePresenceSync(): Promise<void> {
@@ -455,11 +481,24 @@ export class RoomRealtimeSession {
 
   private createPeerConnection(peerId: string, initiator: boolean): RTCPeerConnection {
     const connection = new RTCPeerConnection(this.getTransportConfig());
+    this.logVoice("peer:create", {
+      peerId,
+      initiator,
+      iceServers: this.getTransportConfig().iceServers
+    });
 
     connection.onicecandidate = (event) => {
       if (!event.candidate) {
+        this.logVoice("ice:candidate-complete", { peerId });
         return;
       }
+      this.logVoice("ice:local-candidate", {
+        peerId,
+        type: candidateTypeFromSdp(event.candidate.candidate),
+        protocol: event.candidate.protocol,
+        sdpMid: event.candidate.sdpMid,
+        sdpMLineIndex: event.candidate.sdpMLineIndex
+      });
       void this.sendSignal({
         type: "ice-candidate",
         toPeerId: peerId,
@@ -471,15 +510,38 @@ export class RoomRealtimeSession {
 
     connection.onconnectionstatechange = () => {
       const state = connection.connectionState;
+      this.logVoice("peer:connection-state", { peerId, state });
       if (state === "failed" || state === "disconnected" || state === "closed") {
         this.disconnectPeer(peerId);
         this.peers.delete(peerId);
         this.setPeerCount(this.peers.size);
       }
     };
+    connection.oniceconnectionstatechange = () => {
+      this.logVoice("peer:ice-connection-state", {
+        peerId,
+        state: connection.iceConnectionState
+      });
+    };
+    connection.onicegatheringstatechange = () => {
+      this.logVoice("peer:ice-gathering-state", {
+        peerId,
+        state: connection.iceGatheringState
+      });
+    };
+    connection.onsignalingstatechange = () => {
+      this.logVoice("peer:signaling-state", {
+        peerId,
+        state: connection.signalingState
+      });
+    };
 
     connection.ondatachannel = (event) => {
       this.attachDataChannel(peerId, event.channel);
+      this.logVoice("peer:datachannel-received", {
+        peerId,
+        label: event.channel.label
+      });
       const peer = this.peers.get(peerId);
       if (peer) {
         peer.dataChannel = event.channel;
@@ -492,6 +554,12 @@ export class RoomRealtimeSession {
         return;
       }
 
+      this.logVoice("voice:ontrack", {
+        peerId,
+        streamId: stream.id,
+        audioTrackIds: stream.getAudioTracks().map((t) => t.id),
+        audioContextState: this.audioContext?.state ?? "none"
+      });
       this.remoteStreamByPeer.set(peerId, stream);
       void this.ensureAudioContext().then(() => {
         this.hydrateRemoteVoiceGraph(peerId, stream);
@@ -518,6 +586,10 @@ export class RoomRealtimeSession {
   }
 
   private attachDataChannel(peerId: string, channel: RTCDataChannel): void {
+    this.logVoice("peer:datachannel-attached", { peerId, label: channel.label });
+    channel.onopen = () => {
+      this.logVoice("peer:datachannel-open", { peerId, label: channel.label });
+    };
     channel.onmessage = (event) => {
       if (typeof event.data !== "string") {
         return;
@@ -532,6 +604,7 @@ export class RoomRealtimeSession {
     };
 
     channel.onclose = () => {
+      this.logVoice("peer:datachannel-close", { peerId, label: channel.label });
       const peer = this.peers.get(peerId);
       if (peer) {
         peer.dataChannel = null;
@@ -548,6 +621,11 @@ export class RoomRealtimeSession {
       return;
     }
 
+    this.logVoice("signal:received", {
+      type: message.type,
+      fromPeerId: message.fromPeerId,
+      toPeerId: message.toPeerId
+    });
     switch (message.type) {
       case "offer":
         await this.handleOffer(message);
@@ -564,6 +642,10 @@ export class RoomRealtimeSession {
   }
 
   private async handleOffer(message: Extract<SignalingMessage, { type: "offer" }>): Promise<void> {
+    this.logVoice("signal:handle-offer", {
+      fromPeerId: message.fromPeerId,
+      sdpLength: message.sdp.length
+    });
     if (!this.peers.has(message.fromPeerId)) {
       const connection = this.createPeerConnection(message.fromPeerId, false);
       this.peers.set(message.fromPeerId, {
@@ -582,6 +664,7 @@ export class RoomRealtimeSession {
     // Roll back any pending local offer to avoid "glare" when both peers
     // send offers simultaneously (e.g. both enabling voice at the same time).
     if (peer.connection.signalingState === "have-local-offer") {
+      this.logVoice("signal:offer-glare-rollback", { peerId: message.fromPeerId });
       await peer.connection.setLocalDescription({ type: "rollback" });
     }
 
@@ -589,6 +672,10 @@ export class RoomRealtimeSession {
     this.addLocalAudioToPeer(message.fromPeerId, peer);
     const answer = await peer.connection.createAnswer();
     await peer.connection.setLocalDescription(answer);
+    this.logVoice("signal:answer-created", {
+      toPeerId: message.fromPeerId,
+      sdpLength: answer.sdp?.length ?? 0
+    });
     await this.sendSignal({
       type: "answer",
       toPeerId: message.fromPeerId,
@@ -599,6 +686,10 @@ export class RoomRealtimeSession {
   private async handleAnswer(
     message: Extract<SignalingMessage, { type: "answer" }>
   ): Promise<void> {
+    this.logVoice("signal:handle-answer", {
+      fromPeerId: message.fromPeerId,
+      sdpLength: message.sdp.length
+    });
     const peer = this.peers.get(message.fromPeerId);
     if (!peer) {
       return;
@@ -610,6 +701,10 @@ export class RoomRealtimeSession {
   private async handleIceCandidate(
     message: Extract<SignalingMessage, { type: "ice-candidate" }>
   ): Promise<void> {
+    this.logVoice("ice:remote-candidate", {
+      fromPeerId: message.fromPeerId,
+      type: candidateTypeFromSdp(message.candidate)
+    });
     const peer = this.peers.get(message.fromPeerId);
     if (!peer) {
       return;
@@ -628,8 +723,13 @@ export class RoomRealtimeSession {
       return;
     }
 
+    this.logVoice("signal:create-offer", { peerId });
     const offer = await peer.connection.createOffer();
     await peer.connection.setLocalDescription(offer);
+    this.logVoice("signal:offer-created", {
+      peerId,
+      sdpLength: offer.sdp?.length ?? 0
+    });
     await this.sendSignal({
       type: "offer",
       toPeerId: peerId,
@@ -671,8 +771,12 @@ export class RoomRealtimeSession {
               candidate: payload.candidate,
               sdpMid: payload.sdpMid,
               sdpMLineIndex: payload.sdpMLineIndex
-            };
+          };
 
+    this.logVoice("signal:send", {
+      type: message.type,
+      toPeerId: message.toPeerId
+    });
     await this.signalChannel.send({
       type: "broadcast",
       event: "signal",
@@ -815,6 +919,11 @@ export class RoomRealtimeSession {
       maxDistance: this.voiceSettings.proximityRadius
     });
     this.remoteVoiceByPeer.set(peerId, { stream, graph });
+    this.logVoice("voice:graph-created", {
+      peerId,
+      streamId: stream.id,
+      audioContextState: this.audioContext.state
+    });
   }
 
   private disposeVoiceGraphs(): void {
@@ -850,6 +959,7 @@ export class RoomRealtimeSession {
       remoteVoice.graph.gain.disconnect();
       this.remoteVoiceByPeer.delete(peerId);
     }
+    this.logVoice("peer:disconnected", { peerId });
   }
 
   private async fetchIceServers(): Promise<void> {
@@ -859,14 +969,23 @@ export class RoomRealtimeSession {
       const res = await fetch(apiUrl);
       if (!res.ok) {
         console.warn("[webrtc] Failed to fetch ICE servers:", res.status);
+        this.logVoice("ice:fetch-failed", { status: res.status, apiUrl });
         return;
       }
       const servers: RTCIceServer[] = await res.json();
       if (Array.isArray(servers) && servers.length > 0) {
         this.fetchedIceServers = servers;
+        this.logVoice("ice:fetch-success", {
+          apiUrl,
+          iceServers: servers.map((server) => server.urls)
+        });
       }
     } catch (err) {
       console.warn("[webrtc] Error fetching ICE servers:", err);
+      this.logVoice("ice:fetch-error", {
+        apiUrl,
+        error: err instanceof Error ? err.message : "unknown"
+      });
     }
   }
 
@@ -874,6 +993,7 @@ export class RoomRealtimeSession {
     if (!this.audioContext || this.audioContext.state === "closed") {
       this.audioContext = new AudioContext();
       this.installAudioUnlockHandlers();
+      this.logVoice("audio-context:created", { state: this.audioContext.state });
     }
 
     await this.resumeAudioContextIfNeeded();
@@ -887,19 +1007,27 @@ export class RoomRealtimeSession {
     if (this.audioContext.state === "running") {
       this.hydrateRemoteVoiceGraphs();
       this.cleanupAudioUnlockHandlers();
+      this.logVoice("audio-context:already-running");
       return;
     }
 
     try {
+      this.logVoice("audio-context:resume-attempt", {
+        state: this.audioContext.state
+      });
       await this.audioContext.resume();
     } catch {
       // Will be resumed on the next user gesture.
+      this.logVoice("audio-context:resume-blocked");
     }
 
     const stateAfterResume = this.audioContext.state as AudioContextState;
     if (stateAfterResume === "running") {
       this.hydrateRemoteVoiceGraphs();
       this.cleanupAudioUnlockHandlers();
+      this.logVoice("audio-context:running-after-resume");
+    } else {
+      this.logVoice("audio-context:still-suspended", { state: stateAfterResume });
     }
   }
 
@@ -909,6 +1037,7 @@ export class RoomRealtimeSession {
     }
 
     const unlock = () => {
+      this.logVoice("audio-context:unlock-event");
       void this.resumeAudioContextIfNeeded();
     };
     const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart"];
@@ -1004,6 +1133,20 @@ export class RoomRealtimeSession {
   private setVoicePermission(permission: MicrophonePermissionState): void {
     this.voicePermission = permission;
     this.options.onVoicePermissionChange?.(permission);
+    this.logVoice("voice:permission-updated", { permission });
+  }
+
+  private logVoice(event: string, details?: unknown): void {
+    if (!this.debugVoice) {
+      return;
+    }
+
+    const peer = this.localPeerId.slice(0, 8);
+    if (details === undefined) {
+      console.info(`[voice][${peer}] ${event}`);
+      return;
+    }
+    console.info(`[voice][${peer}] ${event}`, details);
   }
 }
 
@@ -1043,4 +1186,25 @@ function setAudioParam(
 
   const timeConstant = 1 - smoothing;
   param.setTargetAtTime(value, time, Math.max(0.0001, timeConstant));
+}
+
+function candidateTypeFromSdp(candidate: string): string {
+  const match = / typ ([a-zA-Z0-9]+)/.exec(candidate);
+  return match?.[1] ?? "unknown";
+}
+
+function shouldEnableVoiceDebug(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("voiceDebug") === "1") {
+      return true;
+    }
+    return window.localStorage.getItem("voiceDebug") === "1";
+  } catch {
+    return false;
+  }
 }
