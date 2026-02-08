@@ -149,8 +149,8 @@ export function GameSession({
   }, []);
 
   const handleEnableVoice = useCallback(() => {
-    void sessionRef.current?.enableVoice().then(() => {
-      setMicActive(true);
+    void sessionRef.current?.enableVoice().then((enabled) => {
+      setMicActive(Boolean(enabled));
     });
   }, []);
 

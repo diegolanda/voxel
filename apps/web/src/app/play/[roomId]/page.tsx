@@ -55,7 +55,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
       displayName={displayName}
       isHost={isHost}
       turn={{
-        apiUrl: process.env.NEXT_PUBLIC_TURN_API_URL
+        apiUrl: process.env.NEXT_PUBLIC_TURN_API_URL ?? "/api/turn/credentials"
       }}
     />
   );

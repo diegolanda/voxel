@@ -116,6 +116,7 @@ export class RoomRealtimeSession {
   private replicationTimer: ReturnType<typeof setInterval> | null = null;
   private interpolationTimer: ReturnType<typeof setInterval> | null = null;
   private fetchedIceServers: RTCIceServer[] | null = null;
+  private removeAudioUnlockHandlers: (() => void) | null = null;
 
   constructor(options: RoomRealtimeSessionOptions) {
     this.options = options;
@@ -134,6 +135,7 @@ export class RoomRealtimeSession {
     try {
       await this.fetchIceServers();
       await this.setupChannels();
+      await this.ensureAudioContext();
       this.startLoops();
       this.setStatus("connected");
     } catch (error) {
@@ -189,6 +191,7 @@ export class RoomRealtimeSession {
       await this.audioContext.close();
       this.audioContext = null;
     }
+    this.cleanupAudioUnlockHandlers();
 
     this.setPeerCount(0);
     this.setStatus("idle");
@@ -213,23 +216,28 @@ export class RoomRealtimeSession {
     for (const track of this.localStream?.getAudioTracks() ?? []) {
       track.enabled = !muted;
     }
+
+    this.updateSpatialAudio();
   }
 
-  async enableVoice(): Promise<void> {
-    if (!this.running || this.localStream) {
-      return;
+  async enableVoice(): Promise<boolean> {
+    if (!this.running) {
+      return false;
+    }
+
+    if (this.localStream) {
+      return true;
     }
 
     const permission = await getMicrophonePermissionState(navigator);
     this.setVoicePermission(permission);
-    this.audioContext = this.audioContext ?? new AudioContext();
-    await this.audioContext.resume();
+    await this.ensureAudioContext();
 
     const result = await requestMicrophoneStream(navigator);
     this.setVoicePermission(result.permission);
     if (!result.ok) {
       this.options.onError?.(result.reason);
-      return;
+      return false;
     }
 
     this.localStream = result.stream;
@@ -248,6 +256,7 @@ export class RoomRealtimeSession {
 
     this.hydrateRemoteVoiceGraphs();
     await this.updateVoicePresence(true);
+    return true;
   }
 
   disableVoice(): void {
@@ -484,9 +493,9 @@ export class RoomRealtimeSession {
       }
 
       this.remoteStreamByPeer.set(peerId, stream);
-      if (this.audioContext) {
+      void this.ensureAudioContext().then(() => {
         this.hydrateRemoteVoiceGraph(peerId, stream);
-      }
+      });
     };
 
     this.addLocalAudioToPeer(peerId, { connection, initiator, dataChannel: null });
@@ -748,6 +757,32 @@ export class RoomRealtimeSession {
     }
 
     const localPose = this.poseFromPlayerState(this.localState);
+    const now = this.audioContext.currentTime;
+    setAudioParam(this.audioContext.listener.positionX, 0, now, 0.2);
+    setAudioParam(this.audioContext.listener.positionY, 0, now, 0.2);
+    setAudioParam(this.audioContext.listener.positionZ, 0, now, 0.2);
+    setAudioParam(
+      this.audioContext.listener.forwardX,
+      localPose.forward.x,
+      now,
+      0.2
+    );
+    setAudioParam(
+      this.audioContext.listener.forwardY,
+      localPose.forward.y,
+      now,
+      0.2
+    );
+    setAudioParam(
+      this.audioContext.listener.forwardZ,
+      localPose.forward.z,
+      now,
+      0.2
+    );
+    setAudioParam(this.audioContext.listener.upX, 0, now, 0.2);
+    setAudioParam(this.audioContext.listener.upY, 1, now, 0.2);
+    setAudioParam(this.audioContext.listener.upZ, 0, now, 0.2);
+
     for (const [peerId, remote] of this.remoteVoiceByPeer.entries()) {
       const remoteState = this.remotePoseByPeer.get(peerId);
       if (!remoteState) {
@@ -818,10 +853,7 @@ export class RoomRealtimeSession {
   }
 
   private async fetchIceServers(): Promise<void> {
-    const apiUrl = this.options.turn.apiUrl;
-    if (!apiUrl) {
-      return;
-    }
+    const apiUrl = this.options.turn.apiUrl ?? "/api/turn/credentials";
 
     try {
       const res = await fetch(apiUrl);
@@ -836,6 +868,64 @@ export class RoomRealtimeSession {
     } catch (err) {
       console.warn("[webrtc] Error fetching ICE servers:", err);
     }
+  }
+
+  private async ensureAudioContext(): Promise<AudioContext> {
+    if (!this.audioContext || this.audioContext.state === "closed") {
+      this.audioContext = new AudioContext();
+      this.installAudioUnlockHandlers();
+    }
+
+    await this.resumeAudioContextIfNeeded();
+    return this.audioContext;
+  }
+
+  private async resumeAudioContextIfNeeded(): Promise<void> {
+    if (!this.audioContext || this.audioContext.state === "closed") {
+      return;
+    }
+    if (this.audioContext.state === "running") {
+      this.hydrateRemoteVoiceGraphs();
+      this.cleanupAudioUnlockHandlers();
+      return;
+    }
+
+    try {
+      await this.audioContext.resume();
+    } catch {
+      // Will be resumed on the next user gesture.
+    }
+
+    const stateAfterResume = this.audioContext.state as AudioContextState;
+    if (stateAfterResume === "running") {
+      this.hydrateRemoteVoiceGraphs();
+      this.cleanupAudioUnlockHandlers();
+    }
+  }
+
+  private installAudioUnlockHandlers(): void {
+    if (this.removeAudioUnlockHandlers || typeof window === "undefined") {
+      return;
+    }
+
+    const unlock = () => {
+      void this.resumeAudioContextIfNeeded();
+    };
+    const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart"];
+    for (const eventName of events) {
+      window.addEventListener(eventName, unlock, { passive: true });
+    }
+
+    this.removeAudioUnlockHandlers = () => {
+      for (const eventName of events) {
+        window.removeEventListener(eventName, unlock);
+      }
+      this.removeAudioUnlockHandlers = null;
+    };
+  }
+
+  private cleanupAudioUnlockHandlers(): void {
+    this.removeAudioUnlockHandlers?.();
   }
 
   private getTransportConfig(): SessionTransportConfig {
@@ -937,4 +1027,20 @@ async function subscribeChannel(channel: RealtimeChannel): Promise<void> {
       }
     });
   });
+}
+
+function setAudioParam(
+  param: AudioParam,
+  value: number,
+  time: number,
+  alpha: number
+): void {
+  const smoothing = Math.min(1, Math.max(0, alpha));
+  if (smoothing <= 0) {
+    param.value = value;
+    return;
+  }
+
+  const timeConstant = 1 - smoothing;
+  param.setTargetAtTime(value, time, Math.max(0.0001, timeConstant));
 }
