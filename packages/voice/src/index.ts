@@ -79,8 +79,8 @@ export type MicrophoneRequestResult =
 
 export const VOICE_VOLUME_MIN = 0;
 export const VOICE_VOLUME_MAX = 1;
-export const VOICE_DEFAULT_VOLUME = 0.8;
-export const VOICE_DEFAULT_PROXIMITY_RADIUS = 25;
+export const VOICE_DEFAULT_VOLUME = 1;
+export const VOICE_DEFAULT_PROXIMITY_RADIUS = 60;
 export const VOICE_MIN_PROXIMITY_RADIUS = 5;
 export const VOICE_MAX_PROXIMITY_RADIUS = 100;
 
@@ -103,8 +103,8 @@ export const DEFAULT_VOICE_SMOOTHING: VoiceSmoothingConfig = {
 export const DEFAULT_SPATIAL_VOICE_OPTIONS: SpatialVoiceOptions = {
   gain: 1,
   maxDistance: VOICE_DEFAULT_PROXIMITY_RADIUS,
-  refDistance: 1,
-  rolloffFactor: 1.2,
+  refDistance: 3,
+  rolloffFactor: 0.7,
   panningModel: "HRTF",
   distanceModel: "inverse"
 };
@@ -237,7 +237,7 @@ export function createSpatialVoiceGraph(
   panner.maxDistance = resolvedOptions.maxDistance;
   panner.rolloffFactor = resolvedOptions.rolloffFactor;
   panner.coneInnerAngle = 360;
-  panner.coneOuterAngle = 0;
+  panner.coneOuterAngle = 360;
   panner.coneOuterGain = 0;
 
   const gain = context.createGain();

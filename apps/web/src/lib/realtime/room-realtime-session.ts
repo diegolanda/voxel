@@ -1062,6 +1062,13 @@ export class RoomRealtimeSession {
       return;
     }
 
+    if (!hasActiveUserGesture()) {
+      this.logVoice("audio-context:awaiting-user-gesture", {
+        state: this.audioContext.state
+      });
+      return;
+    }
+
     try {
       this.logVoice("audio-context:resume-attempt", {
         state: this.audioContext.state
@@ -1251,11 +1258,34 @@ function shouldEnableVoiceDebug(): boolean {
 
   try {
     const query = new URLSearchParams(window.location.search);
-    if (query.get("voiceDebug") === "1") {
+    if (isTruthyDebugValue(query.get("voiceDebug"))) {
       return true;
     }
-    return window.localStorage.getItem("voiceDebug") === "1";
+    return isTruthyDebugValue(window.localStorage.getItem("voiceDebug"));
   } catch {
     return false;
   }
+}
+
+function isTruthyDebugValue(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes";
+}
+
+function hasActiveUserGesture(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const nav = navigator as Navigator & {
+    userActivation?: {
+      isActive: boolean;
+      hasBeenActive: boolean;
+    };
+  };
+  return Boolean(nav.userActivation?.isActive);
 }
