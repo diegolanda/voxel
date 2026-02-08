@@ -185,6 +185,41 @@ function createSteveTexture(): THREE.CanvasTexture {
 }
 
 /**
+ * Create a small canvas texture for Steve's face (front of head).
+ * Draws skin background with eyes and mouth.
+ */
+function createFaceTexture(): THREE.CanvasTexture {
+  const size = 8;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+
+  // Skin background
+  ctx.fillStyle = SKIN;
+  ctx.fillRect(0, 0, size, size);
+
+  // Eyes (white + iris)
+  ctx.fillStyle = EYE_WHITE;
+  ctx.fillRect(1, 3, 2, 1);
+  ctx.fillRect(5, 3, 2, 1);
+  ctx.fillStyle = EYE_IRIS;
+  ctx.fillRect(2, 3, 1, 1);
+  ctx.fillRect(5, 3, 1, 1);
+
+  // Mouth
+  ctx.fillStyle = MOUTH;
+  ctx.fillRect(3, 6, 2, 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/**
  * Create a solid-color material for a body part.
  * We use simple colored materials per part for the blocky Minecraft look.
  */
@@ -247,11 +282,20 @@ export class SteveModel {
     // ── Head ───────────────────────────────────────────────
     this.headPivot = new THREE.Group();
     this.headPivot.position.set(0, 1.5, 0); // pivot at neck
-    this.head = createColoredBox(
-      HEAD_SIZE, HEAD_SIZE, HEAD_SIZE,
-      // +x (left side), -x (right side), +y (top), -y (bottom), +z (front), -z (back)
-      [SKIN_SHADOW, SKIN_SHADOW, HAIR, SKIN_SHADOW, SKIN, HAIR],
-    );
+    {
+      const geometry = new THREE.BoxGeometry(HEAD_SIZE, HEAD_SIZE, HEAD_SIZE);
+      const faceMaterial = new THREE.MeshLambertMaterial({ map: createFaceTexture() });
+      // +x (left side), -x (right side), +y (top), -y (bottom), +z (front/face), -z (back)
+      const materials = [
+        makePartMaterial(SKIN_SHADOW),
+        makePartMaterial(SKIN_SHADOW),
+        makePartMaterial(HAIR),
+        makePartMaterial(SKIN_SHADOW),
+        faceMaterial,
+        makePartMaterial(HAIR),
+      ];
+      this.head = new THREE.Mesh(geometry, materials);
+    }
     this.head.position.set(0, HEAD_SIZE / 2, 0); // center head above pivot
     this.collectResources(this.head);
     this.headPivot.add(this.head);

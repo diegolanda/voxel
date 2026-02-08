@@ -249,6 +249,7 @@ export class RoomRealtimeSession {
     }
 
     this.hydrateRemoteVoiceGraphs();
+    await this.updateVoicePresence(true);
   }
 
   disableVoice(): void {
@@ -260,6 +261,7 @@ export class RoomRealtimeSession {
       track.stop();
     }
     this.localStream = null;
+    void this.updateVoicePresence(false);
   }
 
   broadcastBlockEdit(edit: BlockEditInfo): void {
@@ -352,6 +354,21 @@ export class RoomRealtimeSession {
       displayName: this.options.displayName,
       isHost: this.options.isHost,
       voiceEnabled: false,
+      joinedAtMs: Date.now()
+    } satisfies ChannelPresenceState);
+  }
+
+  private async updateVoicePresence(enabled: boolean): Promise<void> {
+    if (!this.presenceChannel) {
+      return;
+    }
+
+    await this.presenceChannel.track({
+      peerId: this.localPeerId,
+      userId: this.options.userId,
+      displayName: this.options.displayName,
+      isHost: this.options.isHost,
+      voiceEnabled: enabled,
       joinedAtMs: Date.now()
     } satisfies ChannelPresenceState);
   }
