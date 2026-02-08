@@ -239,13 +239,11 @@ export class RoomRealtimeSession {
 
     for (const [peerId, peer] of this.peers.entries()) {
       this.addLocalAudioToPeer(peerId, peer);
-      if (peer.initiator) {
-        this.createAndSendOffer(peerId).catch((error) => {
-          this.options.onError?.(
-            error instanceof Error ? error.message : "Failed to renegotiate audio stream"
-          );
-        });
-      }
+      this.createAndSendOffer(peerId).catch((error) => {
+        this.options.onError?.(
+          error instanceof Error ? error.message : "Failed to renegotiate audio stream"
+        );
+      });
     }
 
     this.hydrateRemoteVoiceGraphs();
@@ -486,7 +484,7 @@ export class RoomRealtimeSession {
       }
 
       this.remoteStreamByPeer.set(peerId, stream);
-      if (this.localStream) {
+      if (this.audioContext) {
         this.hydrateRemoteVoiceGraph(peerId, stream);
       }
     };
@@ -570,6 +568,12 @@ export class RoomRealtimeSession {
     const peer = this.peers.get(message.fromPeerId);
     if (!peer) {
       return;
+    }
+
+    // Roll back any pending local offer to avoid "glare" when both peers
+    // send offers simultaneously (e.g. both enabling voice at the same time).
+    if (peer.connection.signalingState === "have-local-offer") {
+      await peer.connection.setLocalDescription({ type: "rollback" });
     }
 
     await peer.connection.setRemoteDescription({ type: "offer", sdp: message.sdp });
