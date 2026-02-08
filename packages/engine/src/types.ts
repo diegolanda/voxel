@@ -52,6 +52,15 @@ export interface InputState {
   touchLookDeltaY: number;
 }
 
+// ── Remote player state (for avatar rendering) ─────────────────────
+
+export interface RemotePlayerState {
+  position: [number, number, number];
+  rotation: [number, number]; // [yaw, pitch]
+  velocity: [number, number, number];
+  isTalking: boolean;
+}
+
 // ── Engine config ────────────────────────────────────────────────────
 
 export interface EngineConfig {

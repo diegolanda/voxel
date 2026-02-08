@@ -9,6 +9,7 @@ export interface SceneContext {
   renderer: THREE.WebGLRenderer;
   blockMaterial: THREE.MeshLambertMaterial;
   chunkGroup: THREE.Group;
+  avatarGroup: THREE.Group;
   updateSky: (cameraPosition: THREE.Vector3) => void;
   dispose: () => void;
 }
@@ -60,6 +61,9 @@ export function setupScene(
   const chunkGroup = new THREE.Group();
   scene.add(chunkGroup);
 
+  const avatarGroup = new THREE.Group();
+  scene.add(avatarGroup);
+
   // Resize handling
   const resizeObserver = new ResizeObserver(() => {
     const w = canvas.clientWidth;
@@ -83,5 +87,5 @@ export function setupScene(
     renderer.dispose();
   };
 
-  return { scene, camera, renderer, blockMaterial, chunkGroup, updateSky, dispose };
+  return { scene, camera, renderer, blockMaterial, chunkGroup, avatarGroup, updateSky, dispose };
 }

@@ -1,9 +1,10 @@
 import { BlockType, CHUNK_HEIGHT, QUALITY_PRESETS } from "@voxel/domain";
 import { THEME_CONFIGS } from "@voxel/worldgen";
 import type { ChunkDiff } from "@voxel/protocol";
-import type { EngineConfig, InputState } from "./types";
+import type { EngineConfig, InputState, RemotePlayerState } from "./types";
 import { setupScene } from "./renderer/scene-setup";
 import { ChunkManager } from "./chunk-manager";
+import { PlayerAvatarManager } from "./renderer/player-avatar-manager";
 import { DesktopInput } from "./input/desktop-input";
 import { MobileInput } from "./input/mobile-input";
 import { createPlayerState, updatePlayer } from "./physics/player-controller";
@@ -27,6 +28,8 @@ export interface EngineRuntimeContract {
   getModifiedChunkDiffs(): ChunkDiff[];
   /** Apply saved chunk diffs on top of generated terrain (resume). */
   applyChunkDiffs(diffs: ChunkDiff[]): void;
+  /** Update remote player avatars (Steve models) from network state. */
+  updateRemotePlayers(states: Map<string, RemotePlayerState>): void;
 }
 
 export interface EngineCallbacks {
@@ -78,10 +81,12 @@ export function createEngineRuntime(
   let mobileInput: MobileInput | null = null;
   let sceneCtx: ReturnType<typeof setupScene> | null = null;
   let chunkManager: ChunkManager | null = null;
+  let avatarManager: PlayerAvatarManager | null = null;
   const pendingDiffs: ChunkDiff[] = [];
   let selectedSlot = 0;
   let queuedJump = false;
   let blockInteraction: BlockInteraction | null = null;
+  let remoteStates: Map<string, RemotePlayerState> = new Map();
 
   const applySlotSelection = (slot: number) => {
     const clamped = Math.max(0, Math.min(HOTBAR_BLOCKS.length - 1, slot));
@@ -108,7 +113,10 @@ export function createEngineRuntime(
 
       // Scene setup
       sceneCtx = setupScene(canvas, themeConfig, qualityConfig.pixelRatioCap);
-      const { scene, camera, renderer, blockMaterial, chunkGroup } = sceneCtx;
+      const { scene, camera, renderer, blockMaterial, chunkGroup, avatarGroup } = sceneCtx;
+
+      // Avatar manager for remote player Steve models
+      avatarManager = new PlayerAvatarManager(avatarGroup);
 
       // Worker
       const worker = new Worker(
@@ -194,6 +202,9 @@ export function createEngineRuntime(
           // Keep sky dome centered on camera
           sceneCtx!.updateSky(camera.position);
 
+          // Update remote player avatars
+          avatarManager!.updateRemotePlayers(remoteStates, dt);
+
           // Load/unload chunks
           chunkManager!.updateChunksAroundPlayer(
             px, pz,
@@ -272,16 +283,22 @@ export function createEngineRuntime(
       }
     },
 
+    updateRemotePlayers(states: Map<string, RemotePlayerState>): void {
+      remoteStates = states;
+    },
+
     dispose() {
       disposed = true;
       gameLoop?.stop();
       desktopInput?.dispose();
       mobileInput?.dispose();
+      avatarManager?.dispose();
       chunkManager?.dispose();
       sceneCtx?.dispose();
       gameLoop = null;
       desktopInput = null;
       mobileInput = null;
+      avatarManager = null;
       chunkManager = null;
       sceneCtx = null;
       blockInteraction = null;
@@ -291,4 +308,5 @@ export function createEngineRuntime(
 
 export type { EngineConfig } from "./types";
 export type { PlayerState } from "./types";
+export type { RemotePlayerState } from "./types";
 export { HOTBAR_BLOCKS, BLOCK_NAMES };
