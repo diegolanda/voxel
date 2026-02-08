@@ -24,6 +24,7 @@ import {
   getMicrophonePermissionState,
   createSpatialVoiceGraph,
   updateSpatialVoicePose,
+  clampVoiceVolume,
   type VoiceSettings,
   type MicrophonePermissionState,
   type SpatialVoiceGraph
@@ -690,6 +691,19 @@ export class RoomRealtimeSession {
       toPeerId: message.fromPeerId,
       sdp: answer.sdp ?? ""
     });
+
+    // If the remote offer was data-only but we already have local audio,
+    // the answer couldn't include our audio (answers can't add new m-lines).
+    // Send a follow-up offer so our mic reaches the remote peer promptly.
+    const offerHadAudio = message.sdp.includes("m=audio");
+    if (!offerHadAudio && this.localStream && this.localStream.getAudioTracks().length > 0) {
+      this.logVoice("signal:follow-up-offer-needed", { peerId: message.fromPeerId });
+      this.createAndSendOffer(message.fromPeerId).catch((error) => {
+        this.options.onError?.(
+          error instanceof Error ? error.message : "Failed to send audio renegotiation"
+        );
+      });
+    }
   }
 
   private async handleAnswer(
@@ -921,6 +935,10 @@ export class RoomRealtimeSession {
     for (const [peerId, remote] of this.remoteVoiceByPeer.entries()) {
       const remoteState = this.remotePoseByPeer.get(peerId);
       if (!remoteState) {
+        // No position data yet — still apply the user's volume so the gain
+        // is never stuck at a stale initial value (e.g. 0 from a previous bug).
+        const gain = clampVoiceVolume(this.voiceSettings.volume);
+        setAudioParam(remote.graph.gain.gain, gain, now, 0.2);
         continue;
       }
 
@@ -941,19 +959,37 @@ export class RoomRealtimeSession {
   }
 
   private hydrateRemoteVoiceGraph(peerId: string, stream: MediaStream): void {
-    if (!this.audioContext || this.remoteVoiceByPeer.has(peerId)) {
+    if (!this.audioContext) {
       return;
     }
 
+    // If a voice graph already exists for this peer but the stream changed
+    // (e.g. renegotiation), tear down the stale graph so we recreate it.
+    const existing = this.remoteVoiceByPeer.get(peerId);
+    if (existing) {
+      if (existing.stream === stream) {
+        return;
+      }
+      existing.graph.source.disconnect();
+      existing.graph.panner.disconnect();
+      existing.graph.gain.disconnect();
+      this.remoteVoiceByPeer.delete(peerId);
+      this.logVoice("voice:graph-replaced", { peerId, oldStreamId: existing.stream.id, newStreamId: stream.id });
+    }
+
+    // Always use volume for remote audio gain — local mute only controls
+    // the outgoing mic track, never incoming audio from other players.
     const graph = createSpatialVoiceGraph(this.audioContext, stream, this.audioContext.destination, {
-      gain: this.voiceSettings.muted ? 0 : this.voiceSettings.volume,
+      gain: this.voiceSettings.volume,
       maxDistance: this.voiceSettings.proximityRadius
     });
     this.remoteVoiceByPeer.set(peerId, { stream, graph });
     this.logVoice("voice:graph-created", {
       peerId,
       streamId: stream.id,
-      audioContextState: this.audioContext.state
+      audioContextState: this.audioContext.state,
+      initialGain: this.voiceSettings.volume,
+      trackStates: stream.getAudioTracks().map((t) => ({ id: t.id, readyState: t.readyState, enabled: t.enabled }))
     });
   }
 

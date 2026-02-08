@@ -83,6 +83,8 @@ export const VOICE_DEFAULT_VOLUME = 1;
 export const VOICE_DEFAULT_PROXIMITY_RADIUS = 60;
 export const VOICE_MIN_PROXIMITY_RADIUS = 5;
 export const VOICE_MAX_PROXIMITY_RADIUS = 100;
+/** Spatial attenuation floor — players are always at least 25% audible. */
+export const VOICE_MIN_SPATIAL_GAIN = 0.25;
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   muted: false,
@@ -235,7 +237,10 @@ export function createSpatialVoiceGraph(
   panner.distanceModel = resolvedOptions.distanceModel;
   panner.refDistance = resolvedOptions.refDistance;
   panner.maxDistance = resolvedOptions.maxDistance;
-  panner.rolloffFactor = resolvedOptions.rolloffFactor;
+  // Disable PannerNode's built-in distance attenuation — we compute it
+  // manually in updateSpatialVoicePose so we can enforce a minimum gain floor.
+  // HRTF directional panning still works with rolloffFactor = 0.
+  panner.rolloffFactor = 0;
   panner.coneInnerAngle = 360;
   panner.coneOuterAngle = 360;
   panner.coneOuterGain = 0;
@@ -290,9 +295,17 @@ export function updateSpatialVoicePose(
   // Keep panner maxDistance in sync with user's proximity radius setting.
   graph.panner.maxDistance = Math.max(1, settings.proximityRadius);
 
-  // PannerNode handles distance attenuation via its distanceModel.
-  // Gain node only controls user volume; mute is handled on the local mic track.
-  const finalGain = clampVoiceVolume(settings.volume);
+  // Compute distance attenuation manually (PannerNode rolloff is disabled)
+  // so we can enforce VOICE_MIN_SPATIAL_GAIN as a floor — players are always
+  // audible regardless of distance.  Mute only controls the local mic track.
+  const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const ref = DEFAULT_SPATIAL_VOICE_OPTIONS.refDistance;
+  const maxDist = Math.max(1, settings.proximityRadius);
+  const rolloff = DEFAULT_SPATIAL_VOICE_OPTIONS.rolloffFactor;
+  const clamped = clamp(distance, ref, maxDist);
+  const distanceGain = ref / (ref + rolloff * (clamped - ref));
+  const spatialGain = Math.max(VOICE_MIN_SPATIAL_GAIN, distanceGain);
+  const finalGain = clampVoiceVolume(settings.volume) * spatialGain;
   setAudioParam(graph.gain.gain, finalGain, time, smoothing.gainAlpha);
 }
 
