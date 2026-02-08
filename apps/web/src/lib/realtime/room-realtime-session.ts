@@ -56,6 +56,7 @@ interface PeerState {
   initiator: boolean;
   connection: RTCPeerConnection;
   dataChannel: RTCDataChannel | null;
+  pendingIceCandidates: RTCIceCandidateInit[];
 }
 
 interface RemoteVoiceState {
@@ -435,7 +436,8 @@ export class RoomRealtimeSession {
         this.peers.set(peer.peerId, {
           initiator: peer.initiator,
           connection,
-          dataChannel: null
+          dataChannel: null,
+          pendingIceCandidates: []
         });
 
         if (peer.initiator) {
@@ -511,7 +513,7 @@ export class RoomRealtimeSession {
     connection.onconnectionstatechange = () => {
       const state = connection.connectionState;
       this.logVoice("peer:connection-state", { peerId, state });
-      if (state === "failed" || state === "disconnected" || state === "closed") {
+      if (state === "failed" || state === "closed") {
         this.disconnectPeer(peerId);
         this.peers.delete(peerId);
         this.setPeerCount(this.peers.size);
@@ -566,7 +568,12 @@ export class RoomRealtimeSession {
       });
     };
 
-    this.addLocalAudioToPeer(peerId, { connection, initiator, dataChannel: null });
+    this.addLocalAudioToPeer(peerId, {
+      connection,
+      initiator,
+      dataChannel: null,
+      pendingIceCandidates: []
+    });
     return connection;
   }
 
@@ -651,7 +658,8 @@ export class RoomRealtimeSession {
       this.peers.set(message.fromPeerId, {
         initiator: false,
         connection,
-        dataChannel: null
+        dataChannel: null,
+        pendingIceCandidates: []
       });
       this.setPeerCount(this.peers.size);
     }
@@ -669,6 +677,7 @@ export class RoomRealtimeSession {
     }
 
     await peer.connection.setRemoteDescription({ type: "offer", sdp: message.sdp });
+    await this.flushPendingIceCandidates(message.fromPeerId, peer);
     this.addLocalAudioToPeer(message.fromPeerId, peer);
     const answer = await peer.connection.createAnswer();
     await peer.connection.setLocalDescription(answer);
@@ -695,7 +704,16 @@ export class RoomRealtimeSession {
       return;
     }
 
+    if (peer.connection.signalingState !== "have-local-offer") {
+      this.logVoice("signal:ignore-stale-answer", {
+        fromPeerId: message.fromPeerId,
+        signalingState: peer.connection.signalingState
+      });
+      return;
+    }
+
     await peer.connection.setRemoteDescription({ type: "answer", sdp: message.sdp });
+    await this.flushPendingIceCandidates(message.fromPeerId, peer);
   }
 
   private async handleIceCandidate(
@@ -710,11 +728,24 @@ export class RoomRealtimeSession {
       return;
     }
 
-    await peer.connection.addIceCandidate({
+    const candidate: RTCIceCandidateInit = {
       candidate: message.candidate,
       sdpMid: message.sdpMid,
       sdpMLineIndex: message.sdpMLineIndex
-    });
+    };
+
+    if (!peer.connection.remoteDescription) {
+      if (peer.pendingIceCandidates.length < 100) {
+        peer.pendingIceCandidates.push(candidate);
+      }
+      this.logVoice("ice:queued-before-remote-description", {
+        fromPeerId: message.fromPeerId,
+        queued: peer.pendingIceCandidates.length
+      });
+      return;
+    }
+
+    await peer.connection.addIceCandidate(candidate);
   }
 
   private async createAndSendOffer(peerId: string): Promise<void> {
@@ -960,6 +991,26 @@ export class RoomRealtimeSession {
       this.remoteVoiceByPeer.delete(peerId);
     }
     this.logVoice("peer:disconnected", { peerId });
+  }
+
+  private async flushPendingIceCandidates(peerId: string, peer: PeerState): Promise<void> {
+    if (!peer.connection.remoteDescription || peer.pendingIceCandidates.length === 0) {
+      return;
+    }
+
+    const queued = peer.pendingIceCandidates.splice(0);
+    for (const candidate of queued) {
+      try {
+        await peer.connection.addIceCandidate(candidate);
+      } catch (error) {
+        this.logVoice("ice:flush-candidate-failed", {
+          peerId,
+          error: error instanceof Error ? error.message : "unknown"
+        });
+      }
+    }
+
+    this.logVoice("ice:flushed-queued-candidates", { peerId, count: queued.length });
   }
 
   private async fetchIceServers(): Promise<void> {
